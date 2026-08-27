@@ -1,5 +1,4 @@
 name: Deploy Pages
-# retry price import after Supabase workspace_settings fix
 on:
   push:
     branches: [main]
@@ -20,9 +19,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-      - name: Load current price into Supabase
-        run: |
-          curl --show-error --silent -w '\nHTTP:%{http_code}\n' "https://acukaqoguzkrphauovhk.supabase.co/functions/v1/resnitsy-seed-price?token=9f6c1e2a7b4d8c3f5a1e"
       - name: Build site
         run: |
           mkdir -p _site
