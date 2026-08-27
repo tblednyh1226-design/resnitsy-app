@@ -1,0 +1,68 @@
+s"><strong>Отчёты</strong><span>Записи, услуги, ловец окошек</span></button>
+    <button class="homebtn" data-go="clients"><strong>Клиенты</strong><span>Поиск, карточка и история посещений</span></button>
+    <button class="homebtn" data-go="services"><strong>Услуги</strong><span>Цены, длительность, онлайн-запись</span></button>
+    <button class="homebtn" data-go="settings"><strong>Настройки</strong><span>Окошки, расписание, уведомления</span></button>
+  </div>
+</section>
+
+<section id="calendar" class="screen">
+  <div class="top"><div><div class="title">Календарь</div><div class="sub" id="calSub">Неделя целиком</div></div><div class="tabs"><button id="weekTab" class="on">Неделя</button><button id="dayTab">День</button></div></div>
+  <div class="navrow"><button class="btn" id="prev">‹</button><div class="period" id="period"></div><button class="btn" id="next">›</button></div>
+  <div id="week" class="week"></div><div id="dayview" class="dayview"></div>
+  <div class="actions"><button class="btn" id="windowsBtn">Окошки</button><button class="btn primary" id="newBtn">+ Запись</button><button class="btn" id="todayBtn">Сегодня</button></div>
+</section>
+
+<section id="clients" class="screen">
+  <div class="top"><div class="title">Клиенты</div><button id="addClientBtn" class="btn">+ Клиент</button></div>
+  <input id="clientSearch" class="search" placeholder="Поиск по имени или телефону">
+  <div id="clientList" class="scroll list"></div>
+</section>
+
+<section id="finance" class="screen">
+  <div class="top"><div><div class="title">Финансы</div><div class="sub">По проведённым оплатам</div></div></div>
+  <div class="twocol"><div class="field"><label>С</label><input id="finFrom" type="date"></div><div class="field"><label>По</label><input id="finTo" type="date"></div></div>
+  <button id="finRun" class="btn primary">Обновить</button>
+  <div id="finBox" class="scroll" style="margin-top:8px"></div>
+</section>
+
+<section id="reports" class="screen">
+  <div class="top"><div><div class="title">Отчёты</div><div class="sub">Записи и ловец окошек</div></div></div>
+  <div id="reportBox" class="scroll list"></div>
+</section>
+
+<section id="services" class="screen">
+  <div class="top"><div><div class="title">Услуги</div><div class="sub">Категории и прайс</div></div><div style="display:flex;gap:6px"><button id="addCategoryBtn" class="btn">+ Категория</button><button id="addServiceBtn" class="btn primary">+ Услуга</button></div></div>
+  <div id="categoryList" class="scroll list" style="max-height:34%;margin-bottom:8px"></div>
+  <div id="serviceList" class="scroll list"></div>
+</section>
+
+<section id="settings" class="screen">
+  <div class="top"><div><div class="title">Настройки</div><div class="sub">Онлайн-запись и расписание</div></div></div>
+  <div id="settingsBox" class="scroll"></div>
+</section>
+
+<div id="ov" class="overlay"><div class="modal">
+  <div class="mh"><div><button id="mt" style="border:0;background:none;padding:0;font-weight:780;font-size:18px"></button><div id="ms" class="sub"></div></div><button class="btn" id="close">×</button></div>
+  <div id="mb" class="mb"></div><div id="mf" class="mf"></div>
+</div></div>
+</div>
+
+<nav class="bottomnav">
+  <button data-s="home" class="active">Главная</button>
+  <button data-s="calendar">Календарь</button>
+  <button data-s="clients">Клиенты</button>
+  <button data-s="finance">Финансы</button>
+  <button data-s="reports">Отчёты</button>
+</nav>
+</div>
+
+<script>
+const BASE='https://acukaqoguzkrphauovhk.supabase.co',KEY='sb_publishable_2aKxmTx4WtnZglspnun9gA_goe71amD',EDGE='https://acukaqoguzkrphauovhk.supabase.co/functions/v1/resnitsy-master',SERVICE_EDGE='https://acukaqoguzkrphauovhk.supabase.co/functions/v1/resnitsy-services';
+const PIN=sessionStorage.getItem('pin')||prompt('PIN мастера'); if(PIN) sessionStorage.setItem('pin',PIN);
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+let services=[],categories=[],settings={},view='week',focus=todayStr(),weekStart=monday(focus),lastCal=null;
+async function rpc(name,body={}){let r=await fetch(BASE+'/rest/v1/rpc/'+name,{method:'POST',headers:{'Content-Type':'application/json','apikey':KEY,'Authorization':'Bearer '+KEY},body:JSON.stringify(body)});let t=await r.text(),j;try{j=t?JSON.parse(t):null}catch{j=t}if(!r.ok)throw Error(j?.message||j||'Ошибка');return j}
+async function edge(action,data={}){let r=await fetch(EDGE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:PIN,action,...data})});let j=await r.json();if(!j.ok)throw Error(j.error||'Ошибка');return j} async function serviceApi(action,data={}){let r=await fetch(SERVICE_EDGE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:PIN,action,...data})});let j=await r.json();if(!j.ok)throw Error(j.error||'Ошибка');return j}
+function todayStr(){return new Date().toLocaleDateString('sv-SE',{timeZone:'Europe/Moscow'})}function D(s){return new Date(s+'T00:00:00+03:00')}function add(s,n){let d=D(s);d.setDate(d.getDate()+n);return d.toLocaleDateString('sv-SE',{timeZone:'Europe/Moscow'})}function monday(s){let d=D(s),n=(d.getDay()+6)%7;d.setDate(d.getDate()-n);return d.toLocaleDateString('sv-SE',{timeZone:'Europe/Moscow'})}function ld(x){return new Date(x).toLocaleDateString('sv-SE',{timeZone:'Europe/Moscow'})}function hm(x){return new Date(x).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Moscow'})}
+function screen(id){$$('.screen').forEach(x=>x.classList.toggle('on',x.id===id));$$('.bottomnav button').forEach(x=>x.classList.toggle('active',x.dataset.s===id));if(id==='calendar')renderCal();if(id==='clients')loadClients();if(id==='finance')runFinance();if(id==='reports')loadReports();if(id==='services')loadServicesAdmin();if(id==='settings')renderSettings()}
+$$('.bottomnav button').forEach(b=>b.onclick=()=>screen(b.dataset.s));$$('.homebtn').forEach(b=>b.onclick=()=>screen(b.dataset.go));document.getElementById('homeToday').onclick=()=>{focus=todayStr();week
