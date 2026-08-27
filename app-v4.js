@@ -76,3 +76,5 @@ async function renderDayV4(){
 }
 // replace fragile calendar controls with direct handlers (property handlers replace old property-based handlers where present)
 document.getElementById('weekTab').onclick=()=>{view='week';weekStart=monday(focus);renderCal()};document.getElementById('dayTab').onclick=()=>{view='day';renderCal()};document.getElementById('prev').onclick=()=>{if(view==='week'){weekStart=add(weekStart,-7);focus=weekStart}else focus=add(focus,-1);renderCal()};document.getElementById('next').onclick=()=>{if(view==='week'){weekStart=add(weekStart,7);focus=weekStart}else focus=add(focus,1);renderCal()};document.getElementById('todayBtn').onclick=()=>{focus=todayStr();weekStart=monday(focus);renderCal()};
+// Main-screen Today opens today's DAY view, not the weekly calendar.
+const homeTodayV4=document.getElementById('homeToday');if(homeTodayV4)homeTodayV4.onclick=()=>{focus=todayStr();weekStart=monday(focus);view='day';screen('calendar')};
