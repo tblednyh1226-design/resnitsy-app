@@ -1,4 +1,5 @@
 name: Deploy Pages
+# retry price import after Supabase workspace_settings fix
 on:
   push:
     branches: [main]
