@@ -19,9 +19,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-      - name: Rename lash services to LED
-        run: |
-          curl --fail --show-error --silent -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFjdWthcW9ndXprcnBoYXVvdmhrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4MTc4ODIsImV4cCI6MjEwMzM5Mzg4Mn0.DbgSyQjiQbdTdzWfpvJpZoxmKm8Y-_3zNrWoWy04pgY" "https://acukaqoguzkrphauovhk.supabase.co/functions/v1/resnitsy-rename-led"
       - name: Build site
         run: |
           mkdir -p _site
