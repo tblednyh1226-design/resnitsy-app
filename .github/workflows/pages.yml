@@ -23,6 +23,8 @@ jobs:
         run: |
           mkdir -p _site
           cat buildparts/01.txt buildparts/02.txt buildparts/03.txt buildparts/04.txt buildparts/05.txt buildparts/06.txt > _site/index.html
+          sed -i 's#</head>#<link rel="stylesheet" href="mobile-fix.css?v=3"></head>#' _site/index.html
+          cp mobile-fix.css _site/mobile-fix.css
           cp booking.html _site/booking.html
           touch _site/.nojekyll
       - name: Configure Pages
