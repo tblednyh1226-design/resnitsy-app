@@ -24,10 +24,11 @@ jobs:
           mkdir -p _site
           cat buildparts/01.txt buildparts/02.txt buildparts/03.txt buildparts/04.txt buildparts/05.txt buildparts/06.txt > _site/index.html
           sed -i 's#</head>#<link rel="stylesheet" href="mobile-fix.css?v=3"><link rel="stylesheet" href="app-v4.css?v=4"></head>#' _site/index.html
-          sed -i 's#</body>#<script src="app-v4.js?v=4"></script></body>#' _site/index.html
+          sed -i 's#</body>#<script src="app-v4.js?v=4"></script><script src="edit-save-fix.js?v=1"></script></body>#' _site/index.html
           cp mobile-fix.css _site/mobile-fix.css
           cp app-v4.css _site/app-v4.css
           cp app-v4.js _site/app-v4.js
+          cp edit-save-fix.js _site/edit-save-fix.js
           cp booking.html _site/booking.html
           touch _site/.nojekyll
       - name: Configure Pages
