@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ресницы — мастер</title>
+<style>
+:root{--bg:#f7f5f7;--card:#fff;--line:#ded6dc;--text:#2d2730;--muted:#837a82;--accent:#c7aabd;--soft:#efe5eb;--new:#ece9eb;--master:#dce8f5;--client:#dcebdc;--paid:#cae5cf;--unpaid:#f1e1bd}
+*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);font-family:system-ui;color:var(--text)}button,input,select,textarea{font:inherit;color:inherit}
+.app{height:100%;max-width:900px;margin:auto;display:flex;flex-direction:column}
+.main{flex:1;min-height:0;position:relative}.screen{display:none;height:100%;padding:10px;overflow:hidden}.screen.on{display:flex;flex-direction:column}
+.top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.title{font-size:22px;font-weight:780}.sub{font-size:11px;color:var(--muted)}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:11px;min-height:42px;padding:8px 10px}.primary{background:var(--soft);border-color:var(--accent);font-weight:700}
+.homegrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;flex:1;align-content:start;padding-top:8px}.homebtn{min-height:90px;text-align:left;padding:14px;border:1px solid var(--line);background:#fff;border-radius:16px}
+.homebtn strong{display:block;font-size:18px;margin-bottom:6px}.homebtn span{font-size:11px;color:var(--muted)}
+.navrow{display:grid;grid-template-columns:44px 1fr 44px;gap:6px;align-items:center;margin-bottom:6px}.period{text-align:center;font-weight:700}
+.tabs{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}.tabs button{border:0;background:#fff;padding:8px 11px}.tabs .on{background:var(--soft);font-weight:700}
+.week{display:grid;grid-template-columns:repeat(7,1fr);flex:1;min-height:0;border:1px solid var(--line);border-radius:12px;overflow:hidden}.day{position:relative;border-right:1px solid var(--line);min-width:0}
+.dh{height:36px;background:#f1edf0;border-bottom:1px solid var(--line);text-align:center;font-size:8px;padding:3px;position:relative;cursor:pointer}.dh strong{display:block;font-size:9px}
+.plus{position:absolute;right:2px;bottom:2px;width:20px;height:20px;padding:0;border:1px solid var(--line);background:#fff;border-radius:6px;font-weight:700}
+.appt{position:absolute;left:2px;right:2px;border:1px solid var(--line);border-radius:5px;padding:2px;text-align:left;overflow:hidden;font-size:7px;z-index:4}.appt strong,.appt small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.new{background:var(--new)}.master_confirmed{background:var(--master)}.client_confirmed{background:var(--client)}.completed_paid{background:var(--paid)}.completed_unpaid{background:var(--unpaid)}
+.free{position:absolute;left:2px;right:2px;height:15px;border:1px solid var(--accent);background:var(--soft);border-radius:4px;font-size:6px;z-index:2}.free.off{opacity:.3;background:#f1edf0;border-color:var(--line)}
+.dayview{display:none;flex:1;min-height:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;position:relative}.dayview.on{display:block}
+.hourrow{height:calc(100% / 14);display:grid;grid-template-columns:46px 1fr;border-bottom:1px solid var(--line)}.hour{font-size:8px;color:var(--muted);text-align:center;padding-top:3px;border-right:1px solid var(--line)}.lane{position:relative}.half{position:absolute;top:50%;left:0;right:0;border-top:1px dashed var(--line)}
+.dfree{position:absolute;left:5px;width:105px;height:44%;font-size:7px;border:1px solid var(--line);border-radius:5px;background:#f1edf0}.dfree.on{background:var(--soft);border-color:var(--accent)}
+.dappt{position:absolute;left:52px;right:4px;border:1px solid var(--line);border-radius:6px;padding:4px;text-align:left;z-index:5;overflow:hidden}
+.actions{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:7px}
+.scroll{overflow:auto;min-height:0;overscroll-behavior:contain}.list{display:grid;gap:7px}.card{border:1px solid var(--line);background:#fff;border-radius:11px;padding:10px;text-align:left}
+.search{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:16px;margin-bottom:8px}
+.metricgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.metric{font-size:23px;font-weight:780}
+.bottomnav{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--line);background:#fff;padding:5px}.bottomnav button{border:0;background:transparent;padding:8px 2px;font-size:9px;color:var(--muted)}.bottomnav .active{font-weight:700;color:var(--text)}
+.overlay{display:none;position:absolute;inset:0;background:#0003;z-index:40;padding:8px;align-items:center;justify-content:center}.overlay.on{display:flex}.modal{width:100%;max-width:540px;max-height:97%;background:#fff;border:1px solid var(--line);border-radius:15px;padding:10px;display:flex;flex-direction:column}
+.mh{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}.mb{overflow:auto;min-height:0}.mf{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.field{margin:7px 0}.field label{display:block;font-size:9px;color:var(--muted);margin-bottom:3px}.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;font-size:16px}.twocol{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+</style>
+</head><body>
+<div class="app">
+<div class="main">
+<section id="home" class="screen on">
+  <div class="top"><div><div class="title">Ресницы</div><div class="sub">Кабинет мастера · v2</div></div><button class="btn" id="homeToday">Сегодня</button></div>
+  <div class="homegrid">
+    <button class="homebtn" data-go="calendar"><strong>Календарь</strong><span>Неделя, день, записи и доступность</span></button>
+    <button class="homebtn" data-go="finance"><strong>Финансы</strong><span>Оплаты, выручка, средний чек</span></button>
+    <button class="homebtn" data-go="report
