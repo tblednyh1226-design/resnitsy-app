@@ -1,0 +1,78 @@
+// v4 fixes: clients visible immediately, robust week/day navigation, DIKIDI-like service list
+let serviceFilter='all';
+function ymdDate(s){const [y,m,d]=String(s).split('-').map(Number);return new Date(Date.UTC(y,m-1,d,12,0,0))}
+function ymdFromDate(d){return d.toISOString().slice(0,10)}
+add=function(s,n){const d=ymdDate(s);d.setUTCDate(d.getUTCDate()+Number(n||0));return ymdFromDate(d)};
+monday=function(s){const d=ymdDate(s),dow=d.getUTCDay(),shift=(dow+6)%7;d.setUTCDate(d.getUTCDate()-shift);return ymdFromDate(d)};
+D=function(s){return new Date(String(s)+'T00:00:00+03:00')};
+function ruDate(s,opts={}){return ymdDate(s).toLocaleDateString('ru-RU',{timeZone:'UTC',...opts})}
+function fmtPhone(p){let d=String(p||'').replace(/\D/g,'');if(d.length===11&&d[0]==='8')d='7'+d.slice(1);if(d.length===11)return `+${d[0]} ${d.slice(1,4)} ${d.slice(4,7)}-${d.slice(7,9)}-${d.slice(9)}`;return p||''}
+
+// CLIENTS
+async function renderClientRows(q=''){
+ const box=document.getElementById('clientList');box.innerHTML='<div class="sub">Загрузка клиентов…</div>';
+ try{
+   const z=await serviceApi('clients',{q});const rows=z.clients||[];
+   const count=document.getElementById('clientCountV4');if(count)count.textContent=`Клиентов: ${rows.length}${q?' по запросу':''}`;
+   box.innerHTML=rows.map(c=>{const nm=c.display_name||'Без имени',initial=nm.trim().charAt(0).toUpperCase()||'•';return `<button class="client-row cli-v4" data-id="${c.id}"><span class="client-avatar">${initial}</span><span class="client-main"><b>${nm}</b><span class="sub">${fmtPhone(c.phone)}</span></span><span class="client-visits">${c.imported_visit_count||0} виз.<br>${c.dikidi_last_visit_raw||''}</span></button>`}).join('')||'<div class="sub">Ничего не найдено</div>';
+   document.querySelectorAll('.cli-v4').forEach(b=>b.onclick=()=>clientCard(b.dataset.id));
+ }catch(e){box.innerHTML='<div class="card">Ошибка загрузки клиентов: '+e.message+'</div>'}
+}
+loadClients=async function(){
+ const search=document.getElementById('clientSearch');
+ if(!document.getElementById('clientCountV4')){const n=document.createElement('div');n.id='clientCountV4';n.className='client-count';search.insertAdjacentElement('afterend',n)}
+ search.oninput=()=>{clearTimeout(search._t);search._t=setTimeout(()=>renderClientRows(search.value.trim()),180)};
+ await renderClientRows(search.value.trim());
+};
+
+// SERVICES
+function catLabel(id){return categories.find(c=>c.id===id)?.name||id||'Без категории'}
+renderServices=function(){
+ const catBox=document.getElementById('categoryList'),svcBox=document.getElementById('serviceList');
+ const activeCats=categories.filter(c=>c.is_active!==false).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+ const usedServices=services.filter(s=>s.is_active!==false);
+ catBox.style.maxHeight='none';catBox.className='';
+ catBox.innerHTML=`<button class="services-summary" id="catsSummary"><span class="left"><span class="folderIcon">▱</span><b>Категории услуг</b></span><span class="count">${activeCats.length}</span><span class="chev">›</span></button><div class="service-chips"><button class="service-chip ${serviceFilter==='all'?'on':''}" data-cat="all">Все (${usedServices.length})</button>${activeCats.map(c=>`<button class="service-chip ${serviceFilter===c.id?'on':''}" data-cat="${c.id}">${c.name} (${usedServices.filter(s=>s.category===c.id).length})</button>`).join('')}</div>`;
+ const shown=services.filter(s=>serviceFilter==='all'||s.category===serviceFilter).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)||String(a.name).localeCompare(String(b.name),'ru'));
+ svcBox.className='scroll';svcBox.innerHTML=`<div class="dikidi-list">${shown.map(s=>`<button class="dikidi-service svcEditV4" data-id="${s.id}"><span class="svc-icon">▣</span><span><span class="svc-name">${s.name}</span><span class="svc-meta"><i class="status-dot ${s.is_active?'':'off'}"></i><span>${Number(s.base_price||0).toLocaleString('ru-RU')} ₽</span><span>${s.duration_minutes||0} мин.</span>${s.is_online_bookable?'<span class="online-badge">онлайн</span>':''}</span></span><span class="chev">›</span></button>`).join('')}</div>`;
+ document.querySelectorAll('.service-chip').forEach(b=>b.onclick=()=>{serviceFilter=b.dataset.cat;renderServices()});
+ document.querySelectorAll('.svcEditV4').forEach(b=>b.onclick=()=>serviceForm(services.find(s=>s.id===b.dataset.id)));
+ const summary=document.getElementById('catsSummary');if(summary)summary.onclick=()=>categoryManagerV4();
+};
+function categoryManagerV4(){
+ modal('Категории услуг','Можно создавать сколько угодно категорий',categories.sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(c=>`<button class="card catManageV4" data-id="${c.id}"><b>${c.name}</b><div class="sub">${c.is_active===false?'Неактивна':'Активна'}</div></button>`).join(''),'<button class="btn primary" id="catAddV4">+ Категория</button><button class="btn" id="catCloseV4">Закрыть</button>');
+ document.querySelectorAll('.catManageV4').forEach(b=>b.onclick=()=>categoryForm(categories.find(c=>c.id===b.dataset.id)));document.getElementById('catAddV4').onclick=()=>categoryForm();document.getElementById('catCloseV4').onclick=closeModal;
+}
+
+// CALENDAR
+function apptClass(a){return a.status||'new'}
+function slotOverride(cal,iso){return (cal.overrides||[]).find(x=>new Date(x.slot_start).getTime()===new Date(iso).getTime())}
+renderCal=async function(){
+ const wt=document.getElementById('weekTab'),dt=document.getElementById('dayTab'),w=document.getElementById('week'),dv=document.getElementById('dayview');
+ wt.classList.toggle('on',view==='week');dt.classList.toggle('on',view==='day');w.style.display=view==='week'?'grid':'none';dv.classList.toggle('on',view==='day');document.getElementById('calSub').textContent=view==='week'?'Неделя целиком':'Выбранный день';
+ try{if(view==='week')await renderWeekV4();else await renderDayV4()}catch(e){document.getElementById('period').textContent='Ошибка';(view==='week'?w:dv).innerHTML='<div class="card">'+e.message+'</div>'}
+};
+async function renderWeekV4(){
+ weekStart=monday(weekStart||focus);const dates=Array.from({length:7},(_,i)=>add(weekStart,i));
+ const from=new Date(weekStart+'T00:00:00+03:00').toISOString(),to=new Date(add(weekStart,7)+'T00:00:00+03:00').toISOString();lastCal=await rpc('master_app_calendar',{p_pin:PIN,p_from:from,p_to:to});
+ const p=document.getElementById('period');p.textContent=`${ruDate(weekStart,{day:'numeric',month:'short'})} — ${ruDate(add(weekStart,6),{day:'numeric',month:'short',year:'numeric'})}`;
+ const w=document.getElementById('week');w.innerHTML='';const h=Math.max(420,w.clientHeight||520),today=todayStr();
+ for(const ds of dates){const col=document.createElement('div');col.className='day';const sel=ds===focus?' selected':'',tod=ds===today?' today':'';col.innerHTML=`<div class="dh${sel}${tod}"><strong>${ruDate(ds,{weekday:'short'}).replace('.','').toUpperCase()}</strong>${ruDate(ds,{day:'numeric'})}<button class="plus">+</button></div>`;col.querySelector('.dh').onclick=e=>{if(!e.target.classList.contains('plus')){focus=ds;view='day';renderCal()}};col.querySelector('.plus').onclick=e=>{e.stopPropagation();extraTime(ds)};
+   const aps=(lastCal.appointments||[]).filter(a=>ld(a.starts_at)===ds&&a.status!=='cancelled');
+   for(const a of aps){const st=hm(a.starts_at),m=Number(st.slice(0,2))*60+Number(st.slice(3)),dur=Math.max(30,(new Date(a.ends_at)-new Date(a.starts_at))/60000),b=document.createElement('button');b.className='appt '+apptClass(a);b.style.top=(42+(m-540)/840*(h-42))+'px';b.style.height=Math.max(24,dur/840*(h-42))+'px';b.innerHTML=`<strong>${st} ${a.client_name||'Клиент'}</strong><small>${(a.services||[]).map(s=>s.name).join(' + ')}</small>`;b.onclick=()=>showAppt(a);col.appendChild(b)}
+   for(const t of ['10:00','13:00','16:00','19:00']){const iso=new Date(ds+'T'+t+':00+03:00').toISOString(),moment=new Date(iso),busy=aps.some(a=>moment>=new Date(a.starts_at)&&moment<new Date(a.ends_at));if(busy)continue;const o=slotOverride(lastCal,iso),on=o?o.is_available:true,m=Number(t.slice(0,2))*60+Number(t.slice(3)),b=document.createElement('button');b.className='free '+(on?'':'off');b.style.top=(42+(m-540)/840*(h-42))+'px';b.textContent=t;b.onclick=async()=>{await rpc('master_app_set_availability',{p_pin:PIN,p_slot:iso,p_value:!on});renderWeekV4()};col.appendChild(b)}
+   w.appendChild(col)
+ }
+}
+async function renderDayV4(){
+ const from=new Date(focus+'T00:00:00+03:00').toISOString(),to=new Date(add(focus,1)+'T00:00:00+03:00').toISOString(),cal=await rpc('master_app_calendar',{p_pin:PIN,p_from:from,p_to:to});
+ document.getElementById('period').textContent=ruDate(focus,{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+ const dv=document.getElementById('dayview'),start=8,end=24,rowH=64,total=(end-start)*rowH;
+ const strip=Array.from({length:7},(_,i)=>add(focus,i-3)).map(ds=>`<button class="day-date-btn ${ds===focus?'on':''}" data-date="${ds}">${ruDate(ds,{weekday:'short'})}<br><b>${ruDate(ds,{day:'numeric'})}</b></button>`).join('');
+ dv.innerHTML=`<div class="day-date-strip">${strip}</div><div class="day-canvas" style="height:${total}px"></div>`;dv.querySelectorAll('.day-date-btn').forEach(b=>b.onclick=()=>{focus=b.dataset.date;renderDayV4()});const canvas=dv.querySelector('.day-canvas');
+ for(let h=start;h<end;h++){const y=(h-start)*rowH,row=document.createElement('div');row.className='day-hour';row.style.top=y+'px';row.innerHTML=`<span class="day-hour-label">${String(h).padStart(2,'0')}:00</span><span class="day-half-line"></span>`;canvas.appendChild(row);for(const mm of [0,30]){const t=`${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')}`,iso=new Date(focus+'T'+t+':00+03:00').toISOString(),o=slotOverride(cal,iso),base=['10:00','13:00','16:00','19:00'].includes(t),on=o?o.is_available:base,btn=document.createElement('button');btn.className='day-slot '+(on?'available':'');btn.style.top=(y+(mm?33:2))+'px';btn.textContent=t;btn.onclick=async()=>{await rpc('master_app_set_availability',{p_pin:PIN,p_slot:iso,p_value:!on});renderDayV4()};canvas.appendChild(btn)}}
+ for(const a of (cal.appointments||[]).filter(x=>x.status!=='cancelled')){const st=hm(a.starts_at),mins=Number(st.slice(0,2))*60+Number(st.slice(3)),dur=Math.max(30,(new Date(a.ends_at)-new Date(a.starts_at))/60000),b=document.createElement('button');b.className='day-appt '+apptClass(a);b.style.top=((mins-start*60)/60*rowH)+'px';b.style.height=Math.max(34,dur/60*rowH)+'px';b.innerHTML=`<strong>${st} · ${a.client_name||'Клиент'}</strong><small>${(a.services||[]).map(s=>s.name).join(' + ')}</small>`;b.onclick=()=>showAppt(a);canvas.appendChild(b)}
+ canvas.onclick=e=>{if(e.target===canvas){const r=canvas.getBoundingClientRect(),mins=Math.max(0,Math.min((end-start)*60-1,(e.clientY-r.top)/rowH*60));const hh=start+Math.floor(mins/60),mm=(mins%60)<30?'00':'30';form(null,focus,`${String(hh).padStart(2,'0')}:${mm}`)}};
+}
+// replace fragile calendar controls with direct handlers (property handlers replace old property-based handlers where present)
+document.getElementById('weekTab').onclick=()=>{view='week';weekStart=monday(focus);renderCal()};document.getElementById('dayTab').onclick=()=>{view='day';renderCal()};document.getElementById('prev').onclick=()=>{if(view==='week'){weekStart=add(weekStart,-7);focus=weekStart}else focus=add(focus,-1);renderCal()};document.getElementById('next').onclick=()=>{if(view==='week'){weekStart=add(weekStart,7);focus=weekStart}else focus=add(focus,1);renderCal()};document.getElementById('todayBtn').onclick=()=>{focus=todayStr();weekStart=monday(focus);renderCal()};
