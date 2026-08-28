@@ -1,27 +1,41 @@
-/* Home screen waitlist entry and overview */
+/* Home waitlist: counter, active queue, proposal outcomes, archive/history. */
 (function(){
-  function fmtDate(x){if(!x)return '—';return new Date(x+'T00:00:00').toLocaleDateString('ru-RU')}
-  async function openWaitlistOverview(){
+  const ACTIVE=['active','offered'];
+  const statusName={active:'Ждёт окошко',offered:'Предложено',accepted:'Согласился',expired:'Истёк срок',cancelled:'Отменено'};
+  const eventName={created:'Добавлен в ловец',updated:'Параметры изменены',offered:'Предложено окно',declined:'Клиент отказался',accepted:'Клиент согласился',expired:'Истёк срок ожидания',session_passed:'Запись уже прошла',cancelled:'Ожидание отменено',reactivated:'Снова активен'};
+  function fmtDate(x){if(!x)return '—';return new Date(x+'T00:00:00+03:00').toLocaleDateString('ru-RU',{timeZone:'Europe/Moscow',day:'numeric',month:'short'})}
+  function fmtDT(x){if(!x)return '';return new Date(x).toLocaleString('ru-RU',{timeZone:'Europe/Moscow',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}
+  function esc(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+  function details(r){const time=(r.time_from||r.time_to)?` · ${String(r.time_from||'').slice(0,5)}–${String(r.time_to||'').slice(0,5)}`:'';return `${fmtDate(r.date_from)} — ${fmtDate(r.date_to)}${time}`}
+  async function refreshCounter(){try{const z=await waitApi('list',{}),n=(z.rows||[]).filter(r=>ACTIVE.includes(r.status)).length;const badge=document.getElementById('homeWaitlistCount');if(badge){badge.textContent=n;badge.hidden=!n}const sub=document.getElementById('homeWaitlistSub');if(sub)sub.textContent=n?`Активных запросов: ${n}`:'Сейчас никто не ждёт окошко';return n}catch{return 0}}
+  async function showHistory(id){try{const z=await waitApi('history',{id});const rows=z.rows||[];modal('История ловца','Все изменения и предложения',rows.length?`<div class="wl-history-list">${rows.map(x=>`<div class="card"><b>${eventName[x.event_type]||x.event_type}</b><div class="sub">${fmtDT(x.created_at)}</div>${x.event_text?`<div style="margin-top:5px">${esc(x.event_text)}</div>`:''}${x.offered_at?`<div class="sub">Окно: ${fmtDT(x.offered_at)}</div>`:''}</div>`).join('')}</div>`:'<div class="card">История пока пустая</div>','<button class="btn" id="wlHistClose">Закрыть</button>');document.getElementById('wlHistClose').onclick=closeModal}catch(e){alert(e.message)}}
+  function activeCard(r){const c=r.clients||{};return `<div class="card wl-card"><div class="wl-card-head"><div><b>${esc(c.display_name||'Клиент')}</b><div class="sub">${esc(r.desired_text||'Без услуги')}</div></div><span class="wl-status ${r.status}">${statusName[r.status]||r.status}</span></div><div class="sub" style="margin-top:6px">${details(r)}</div><div class="wl-actions">${r.status==='offered'?`<button class="btn primary wl-accept" data-id="${r.id}">Согласился</button><button class="btn wl-decline" data-id="${r.id}">Отказался</button>`:`<button class="btn primary wl-offer" data-id="${r.id}">Предложить окно</button>`}<button class="btn wl-client" data-client="${r.client_id||''}">Клиент</button><button class="btn wl-events" data-id="${r.id}">История</button></div></div>`}
+  function archiveCard(r){const c=r.clients||{};return `<div class="card wl-card"><div class="wl-card-head"><div><b>${esc(c.display_name||'Клиент')}</b><div class="sub">${esc(r.desired_text||'Без услуги')}</div></div><span class="wl-status ${r.status}">${statusName[r.status]||r.status}</span></div><div class="sub" style="margin-top:6px">${details(r)}</div><div class="wl-actions"><button class="btn wl-client" data-client="${r.client_id||''}">Клиент</button><button class="btn wl-events" data-id="${r.id}">История действий</button></div></div>`}
+  function bindRows(rows,rerender){
+    document.querySelectorAll('.wl-client').forEach(b=>b.onclick=()=>{const id=b.dataset.client;if(id)clientCard(id)});
+    document.querySelectorAll('.wl-events').forEach(b=>b.onclick=()=>showHistory(b.dataset.id));
+    document.querySelectorAll('.wl-offer').forEach(b=>b.onclick=()=>offerForm(rows.find(x=>x.id===b.dataset.id),rerender));
+    document.querySelectorAll('.wl-accept').forEach(b=>b.onclick=async()=>{if(!confirm('Клиент согласился на предложенное окно? Запрос уйдёт в историю.'))return;await waitApi('accept',{id:b.dataset.id});await refreshCounter();await rerender()});
+    document.querySelectorAll('.wl-decline').forEach(b=>b.onclick=async()=>{const note=prompt('Можно оставить комментарий к отказу:','Клиент отказался от этого окна')||'Клиент отказался от этого окна';await waitApi('decline',{id:b.dataset.id,text:note});await refreshCounter();await rerender()});
+  }
+  function offerForm(r,rerender){const d=todayStr(),defaultTime='10:00';modal('Предложить окно',r?.clients?.display_name||'',`<div class="field"><label>Дата</label><input id="wlOfferDate" type="date" value="${d}"></div><div class="field"><label>Время</label><input id="wlOfferTime" type="time" value="${defaultTime}"></div><div class="field"><label>Комментарий</label><textarea id="wlOfferNote" rows="4" placeholder="Например: освободилось окно после отмены"></textarea></div>`,`<button class="btn primary" id="wlOfferSave">Отметить как предложенное</button><button class="btn" id="wlOfferCancel">Отмена</button>`);document.getElementById('wlOfferCancel').onclick=closeModal;document.getElementById('wlOfferSave').onclick=async()=>{const ds=document.getElementById('wlOfferDate').value,t=document.getElementById('wlOfferTime').value;if(!ds||!t)return alert('Укажите дату и время');const at=new Date(ds+'T'+t+':00+03:00').toISOString(),note=document.getElementById('wlOfferNote').value.trim()||`Предложено окно ${fmtDate(ds)} в ${t}`;await waitApi('offer',{id:r.id,offeredAt:at,text:note});closeModal();await rerender()}}
+  async function openWaitlistOverview(initial='active'){
     try{
-      const z=await waitApi('list',{});
-      const rows=(z.rows||[]).filter(r=>r.status==='active'||r.status==='new');
-      const body=rows.length?rows.map(r=>{
-        const client=r.clients||{};
-        const time=(r.time_from||r.time_to)?` · ${String(r.time_from||'').slice(0,5)}–${String(r.time_to||'').slice(0,5)}`:'';
-        return `<button type="button" class="card homeWlRow" data-client="${r.client_id||''}"><b>${client.display_name||'Клиент'}</b><div class="sub">${r.desired_text||'Без услуги'}</div><div class="sub">${fmtDate(r.date_from)} — ${fmtDate(r.date_to)}${time}</div></button>`;
-      }).join(''):'<div class="card"><b>Активных запросов нет</b><div class="sub">Добавить ловца можно из карточки клиента</div></div>';
-      modal('Ловец окошек',`Активных запросов: ${rows.length}`,`<div class="list">${body}</div>`,'<button class="btn" id="wlHomeClose">Закрыть</button>');
-      document.querySelectorAll('.homeWlRow').forEach(b=>b.onclick=()=>{const id=b.dataset.client;if(id)clientCard(id)});
-      const close=document.getElementById('wlHomeClose');if(close)close.onclick=closeModal;
-    }catch(e){modal('Ловец окошек','Ошибка',`<div class="card">${e.message||'Не удалось загрузить запросы'}</div>`,'<button class="btn" id="wlHomeClose">Закрыть</button>');const c=document.getElementById('wlHomeClose');if(c)c.onclick=closeModal}
+      const z=await waitApi('list',{}),all=z.rows||[],active=all.filter(r=>ACTIVE.includes(r.status)),archive=all.filter(r=>!ACTIVE.includes(r.status));
+      const body=`<div class="wl-tabs"><button class="btn wl-tab ${initial==='active'?'on':''}" data-tab="active">Активные <b>${active.length}</b></button><button class="btn wl-tab ${initial==='history'?'on':''}" data-tab="history">История <b>${archive.length}</b></button></div><div id="wlHomeList"></div>`;
+      modal('Ловец окошек',`Активных запросов: ${active.length}`,body,'<button class="btn" id="wlHomeClose">Закрыть</button>');
+      let tab=initial;
+      const render=async()=>{const host=document.getElementById('wlHomeList');if(!host)return;const rows=tab==='active'?active:archive;host.innerHTML=rows.length?`<div class="list">${rows.map(tab==='active'?activeCard:archiveCard).join('')}</div>`:`<div class="card"><b>${tab==='active'?'Активных запросов нет':'История пока пустая'}</b></div>`;bindRows(rows,async()=>{closeModal();await openWaitlistOverview(tab)})};
+      document.querySelectorAll('.wl-tab').forEach(b=>b.onclick=async()=>{tab=b.dataset.tab;document.querySelectorAll('.wl-tab').forEach(x=>x.classList.toggle('on',x===b));await render()});
+      document.getElementById('wlHomeClose').onclick=closeModal;await render();
+    }catch(e){modal('Ловец окошек','Ошибка',`<div class="card">${esc(e.message||'Не удалось загрузить запросы')}</div>`,'<button class="btn" id="wlHomeClose">Закрыть</button>');document.getElementById('wlHomeClose').onclick=closeModal}
   }
   const grid=document.querySelector('#home .homegrid');
   if(grid && !document.getElementById('homeWaitlistBtn')){
-    const b=document.createElement('button');
-    b.className='homebtn';b.id='homeWaitlistBtn';
-    b.innerHTML='<strong>Ловец окошек</strong><span>Клиенты, которые ждут свободное время</span>';
-    b.onclick=openWaitlistOverview;
-    grid.appendChild(b);
+    const b=document.createElement('button');b.className='homebtn wl-homebtn';b.id='homeWaitlistBtn';
+    b.innerHTML='<span id="homeWaitlistCount" class="wl-count" hidden>0</span><strong>Ловец окошек</strong><span id="homeWaitlistSub">Клиенты, которые ждут свободное время</span>';
+    b.onclick=()=>openWaitlistOverview('active');grid.appendChild(b);
   }
-  window.openWaitlistOverview=openWaitlistOverview;
+  const st=document.createElement('style');st.textContent='.wl-homebtn{position:relative}.wl-count{position:absolute;right:12px;top:10px;min-width:27px;height:27px;padding:0 7px;border-radius:999px;background:#b987a5;color:#fff;display:grid;place-items:center;font-size:13px;font-weight:800}.wl-tabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:8px 0 10px}.wl-tab.on{background:var(--soft);border-color:var(--accent);font-weight:700}.wl-card{margin-bottom:8px}.wl-card-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.wl-status{font-size:10px;padding:4px 7px;border-radius:999px;background:#eee;white-space:nowrap}.wl-status.active{background:#efe5eb}.wl-status.offered{background:#f3e4b6}.wl-status.accepted{background:#dcebdc}.wl-status.expired,.wl-status.cancelled{background:#ece9eb;color:#777}.wl-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}.wl-actions .btn{min-height:36px;font-size:11px}.wl-history-list{display:grid;gap:7px}';document.head.appendChild(st);
+  window.openWaitlistOverview=openWaitlistOverview;window.refreshWaitlistCounter=refreshCounter;refreshCounter();
 })();
