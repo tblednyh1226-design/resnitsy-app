@@ -35,8 +35,8 @@ jobs:
             "document.getElementById('todayBtn').addEventListener('click'",
           ]
           text='\n'.join(line for line in text.splitlines() if not any(x in line for x in bad))
-          head='''<link rel="stylesheet" href="mobile-fix.css?v=3"><link rel="stylesheet" href="app-v4.css?v=4"><link rel="stylesheet" href="dayoff.css?v=5"><style>.notify-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}.notify-row span{display:flex;flex-direction:column}.notify-row small{color:var(--muted);font-size:10px}.notify-section{border-top:1px solid var(--line);margin-top:10px;padding-top:10px}.notify-status{margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fafafa}</style>'''
-          body='''<script src="app-v4.js?v=7"></script><script src="edit-save-fix.js?v=2"></script><script src="waitlist-client.js?v=2"></script><script src="home-waitlist.js?v=1"></script><script src="dayoff.js?v=7"></script><script src="notifications.js?v=1"></script><script src="clients-refresh-fix.js?v=1"></script>'''
+          head='''<link rel="stylesheet" href="mobile-fix.css?v=3"><link rel="stylesheet" href="app-v4.css?v=4"><link rel="stylesheet" href="dayoff.css?v=5"><style>.notify-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}.notify-row span{display:flex;flex-direction:column}.notify-row small{color:var(--muted);font-size:10px}.notify-section{border-top:1px solid var(--line);margin-top:10px;padding-top:10px}.notify-status{margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fafafa}#week .plus,#week .dayoff-mini{display:none!important}</style>'''
+          body='''<script src="app-v4.js?v=7"></script><script src="edit-save-fix.js?v=2"></script><script src="waitlist-client.js?v=2"></script><script src="home-waitlist.js?v=1"></script><script src="dayoff.js?v=7"></script><script src="notifications.js?v=1"></script><script src="clients-refresh-fix.js?v=1"></script><script src="calendar-nav-fix.js?v=1"></script>'''
           text=text.replace('</head>',head+'</head>').replace('</body>',body+'</body>')
           p.write_text(text)
           PY
@@ -50,6 +50,7 @@ jobs:
           cp dayoff.js _site/dayoff.js
           cp notifications.js _site/notifications.js
           cp clients-refresh-fix.js _site/clients-refresh-fix.js
+          cp calendar-nav-fix.js _site/calendar-nav-fix.js
           cp booking.html _site/booking.html
           touch _site/.nojekyll
       - name: Configure Pages
