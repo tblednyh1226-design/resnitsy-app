@@ -5,6 +5,7 @@
   function localTime(iso){return new Date(iso).toLocaleTimeString('ru-RU',{timeZone:'Europe/Moscow',hour:'2-digit',minute:'2-digit'})}
   function dayName(ds){const d=new Date(ds+'T12:00:00+03:00');return defs[d.getDay()]}
   function prettyDate(ds){return new Date(ds+'T12:00:00+03:00').toLocaleDateString('ru-RU',{timeZone:'Europe/Moscow',day:'numeric',month:'long'})}
+  function dateWithDay(ds){return `${prettyDate(ds)} (${dayName(ds)})`}
   function monthStart(ds){return ds.slice(0,7)+'-01'}
   function nextMonth(ds){const d=new Date(monthStart(ds)+'T12:00:00+03:00');d.setMonth(d.getMonth()+1);return d.toLocaleDateString('sv-SE',{timeZone:'Europe/Moscow'}).slice(0,7)+'-01'}
   async function loadSchedule(){const z=await dayoffApi('weekly');return {weekdays:Array.isArray(z.weekdays)?z.weekdays:[0,1,2,3,4,5,6],groups:Array.isArray(z.work_time_groups)?z.work_time_groups:[]}}
@@ -41,11 +42,11 @@
   async function renderRange(key){
     const p=presets()[key]||presets().week,host=document.getElementById('winList');host.innerHTML='<div class="sub" style="padding:12px">Загрузка…</div>';
     try{const rows=await collect(p[0],p[1]);if(!rows.length){host.innerHTML='<div class="card">Свободных окошек в этом периоде нет.</div>';return}
-      host.innerHTML=rows.map(r=>`<div class="win-day"><div class="win-date"><b>${dayName(r.date)}, ${prettyDate(r.date)}</b><button type="button" class="win-day-all" data-date="${r.date}">Все</button></div><div class="win-times">${r.times.map(t=>`<label class="win-slot"><input type="checkbox" checked data-date="${r.date}" data-time="${t}"><span>${t}</span></label>`).join('')}</div></div>`).join('');
+      host.innerHTML=rows.map(r=>`<div class="win-day"><div class="win-date"><b>${dateWithDay(r.date)}</b><button type="button" class="win-day-all" data-date="${r.date}">Все</button></div><div class="win-times">${r.times.map(t=>`<label class="win-slot"><input type="checkbox" checked data-date="${r.date}" data-time="${t}"><span>${t}</span></label>`).join('')}</div></div>`).join('');
       host.querySelectorAll('.win-day-all').forEach(b=>b.onclick=()=>{const xs=[...host.querySelectorAll(`input[data-date="${b.dataset.date}"]`)];const on=xs.some(x=>!x.checked);xs.forEach(x=>x.checked=on)});
     }catch(e){host.innerHTML='<div class="card">Ошибка: '+e.message+'</div>'}
   }
-  function selectedText(){const xs=[...document.querySelectorAll('#winList .win-slot input:checked')];if(!xs.length)return'';const by={};xs.forEach(x=>{(by[x.dataset.date]||(by[x.dataset.date]=[])).push(x.dataset.time)});return 'Свободные окошки:\n\n'+Object.keys(by).sort().map(ds=>`${dayName(ds)}, ${prettyDate(ds)} — ${by[ds].sort().join(', ')}`).join('\n')}
+  function selectedText(){const xs=[...document.querySelectorAll('#winList .win-slot input:checked')];if(!xs.length)return'';const by={};xs.forEach(x=>{(by[x.dataset.date]||(by[x.dataset.date]=[])).push(x.dataset.time)});return 'Свободные окошки:\n\n'+Object.keys(by).sort().map(ds=>`${dateWithDay(ds)} — ${by[ds].sort().join(', ')}`).join('\n')}
   window.openWindows=function(){
     modal('Окошки','Выберите период и оставьте только те времена, которые хотите отправить клиенту',`<div class="win-presets"><button class="btn win-preset on" data-p="week">Эта неделя</button><button class="btn win-preset" data-p="nextweek">Следующая</button><button class="btn win-preset" data-p="month">Этот месяц</button><button class="btn win-preset" data-p="nextmonth">Следующий</button></div><div id="winList" class="win-list"></div>`,`<button class="btn primary" id="winCopy">Скопировать</button><button class="btn" id="winShare">Поделиться</button><button class="btn" id="winClose">Закрыть</button>`);
     let current='week';renderRange(current);document.querySelectorAll('.win-preset').forEach(b=>b.onclick=()=>{current=b.dataset.p;document.querySelectorAll('.win-preset').forEach(x=>x.classList.toggle('on',x===b));renderRange(current)});
