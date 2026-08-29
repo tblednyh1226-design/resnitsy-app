@@ -1,4 +1,4 @@
-/* Settings hub: render shell immediately so legacy settings never flash. */
+/* Settings hub: render shell immediately and isolate work/notification sections. */
 (function(){
  let onlineEnabled=true,section='hub';
  function box(){return document.getElementById('settingsBox')}
@@ -7,19 +7,17 @@
  function paintHub(){const b=box();if(!b)return;section='hub';b.innerHTML=hubHtml();bindHub(b)}
  function bindHub(b){b.querySelectorAll('[data-settings-section]').forEach(x=>x.onclick=()=>openSection(x.dataset.settingsSection));const t=b.querySelector('#onlineBookingToggle');if(t)t.onchange=e=>{onlineEnabled=e.target.checked;b.querySelector('#onlineState').textContent=onlineEnabled?'Включена':'Выключена'}}
  async function openSection(kind){const b=box();if(!b)return;section=kind;b.innerHTML='<button class="btn settings-back">‹ Настройки</button><div class="settings-loading sub">Загрузка…</div>';b.querySelector('.settings-back').onclick=paintHub;
-   /* Render native extension blocks off-screen first, then reveal only requested group. */
    const stage=document.createElement('div');stage.className='settings-stage';stage.style.display='none';b.appendChild(stage);
    const oldId=b.id;b.id='settingsBoxVisible';stage.id='settingsBox';
-   try{if(typeof window.__legacyRenderSettings==='function')window.__legacyRenderSettings();await new Promise(r=>setTimeout(r,120));}
+   try{if(typeof window.__legacyRenderSettings==='function')await window.__legacyRenderSettings();}
+   catch(e){console.error(e)}
    finally{stage.id='';b.id=oldId}
-   const wanted=[...stage.children].filter(x=>x.classList?.contains(kind==='work'?'dayoff-settings-block':'notify-settings-block')||kind==='work'&&x.classList?.contains('wt-settings'));
+   const wanted=[...stage.children].filter(x=>kind==='work'?(x.classList?.contains('dayoff-settings-block')||x.classList?.contains('wt-settings')):x.classList?.contains('notify-settings-block'));
    b.querySelector('.settings-loading')?.remove();wanted.forEach(x=>{x.style.display='block';b.appendChild(x)});stage.remove();
-   if(!wanted.length){const d=document.createElement('div');d.className='card';d.textContent=kind==='work'?'Настройки режима работы загружаются…':'Настройки уведомлений загружаются…';b.appendChild(d)}
+   if(!wanted.length){const d=document.createElement('div');d.className='card';d.textContent=kind==='work'?'Не удалось загрузить режим работы':'Не удалось загрузить уведомления';b.appendChild(d)}
  }
- /* Capture legacy renderer, but replace it before any Settings navigation can call it. */
  const legacy=window.renderSettings;window.__legacyRenderSettings=legacy;
  window.renderSettings=function(){paintHub()};
- /* Extensions may replace renderSettings later. Keep Settings navigation flicker-free by intercepting clicks before screen(). */
  document.addEventListener('click',e=>{const target=e.target.closest('[data-go="settings"],[data-s="settings"]');if(!target)return;const b=box();if(b)paintHub()},true);
  const st=document.createElement('style');st.textContent=`#settingsBox:empty{visibility:hidden}.settings-hub{display:grid;gap:8px}.settings-menu-card,.online-toggle-card{width:100%;border:1px solid var(--line);background:#fff;border-radius:14px;padding:15px 16px;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:12px;color:inherit}.settings-menu-card span,.online-toggle-card>span{display:flex;flex-direction:column;gap:3px}.settings-menu-card b,.online-toggle-card b{font-size:17px}.settings-menu-card small,.online-toggle-card small{font-size:12px;color:var(--muted);font-style:normal}.settings-menu-card i{font-style:normal;font-size:27px;color:#aaa}.settings-back{margin-bottom:8px}.switch{position:relative;width:48px;height:28px;flex:0 0 auto}.switch input{display:none}.switch i{position:absolute;inset:0;border-radius:999px;background:#ddd}.switch i:after{content:'';position:absolute;width:22px;height:22px;left:3px;top:3px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #999;transition:.15s}.switch input:checked+i{background:#a97a9d}.switch input:checked+i:after{transform:translateX(20px)}`;document.head.appendChild(st);
 })();
