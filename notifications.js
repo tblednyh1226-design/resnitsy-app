@@ -1,6 +1,7 @@
 /* Stable notifications settings panel */
 const NOTIFY_EDGE='https://acukaqoguzkrphauovhk.supabase.co/functions/v1/resnitsy-notifications';
-async function notifyApi(action,data={}){const r=await fetch(NOTIFY_EDGE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:PIN,action,...data})});const j=await r.json();if(!r.ok||!j.ok)throw Error(j.error||'Ошибка настроек уведомлений');return j}
+window.notifyApi=async function(action,data={}){const r=await fetch(NOTIFY_EDGE,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:PIN,action,...data})});const j=await r.json();if(!r.ok||!j.ok)throw Error(j.error||'Ошибка настроек уведомлений');return j};
+const notifyApi=window.notifyApi;
 function e(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')}
 function nrow(title,sub,id,on){return `<label class="notify-row"><span><b>${title}</b><small>${sub}</small></span><input id="${id}" type="checkbox" ${on?'checked':''}></label>`}
 function tpl(title,id,value){return `<details class="notify-template"><summary>${title}</summary><div class="field"><textarea id="${id}" rows="5">${e(value)}</textarea></div><div class="template-actions"><span class="sub template-save-status"></span><button class="btn" type="button" data-save-template>Сохранить шаблон</button></div></details>`}
