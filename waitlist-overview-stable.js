@@ -19,6 +19,5 @@
     }catch(e){host.innerHTML=`<div class="card">${esc(e.message)}</div><button class="btn primary" id="wlStableRetry" style="width:100%;margin-top:8px">Повторить</button>`;document.getElementById('wlStableRetry').onclick=()=>openOverview(initial)}
   }
   window.openWaitlistOverview=openOverview;
-  function bind(){const b=document.getElementById('homeWaitlistBtn');if(b)b.onclick=()=>openOverview('active')}
-  bind();document.addEventListener('click',e=>{const b=e.target.closest('#homeWaitlistBtn');if(b){e.preventDefault();openOverview('active')}});
+  const b=document.getElementById('homeWaitlistBtn');if(b)b.onclick=()=>openOverview('active');
 })();
