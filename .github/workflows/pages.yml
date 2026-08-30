@@ -32,7 +32,13 @@ jobs:
           body='''<script src="app-v4.js?v=8"></script><script src="edit-save-fix.js?v=6"></script><script src="waitlist-client.js?v=3"></script><script src="telegram-client-link.js?v=1"></script><script src="home-waitlist.js?v=4"></script><script src="dayoff.js?v=7"></script><script src="notifications.js?v=7"></script><script src="home-notifications.js?v=1"></script><script src="telegram-webhook-ui.js?v=2"></script><script src="clients-refresh-fix.js?v=1"></script><script src="clients-waitlist-badge.js?v=1"></script><script src="calendar-nav-fix.js?v=3"></script><script src="day-header-stable.js?v=1"></script><script src="breaks.js?v=3"></script><script src="day-slot-actions.js?v=2"></script><script src="worktime.js?v=7"></script><script src="dayoff-workday-override.js?v=2"></script><script src="windows.js?v=2"></script><script src="calendar-unread.js?v=1"></script><script src="appointment-notifications.js?v=2"></script><script src="settings-sections.js?v=6"></script>'''
           text=text.replace('</head>',head+'</head>').replace('</body>',body+'</body>'); p.write_text(text)
           PY
-          cp mobile-fix.css app-v4.css dayoff.css app-v4.js edit-save-fix.js waitlist-client.js telegram-client-link.js home-waitlist.js dayoff.js dayoff-workday-override.js notifications.js home-notifications.js telegram-webhook-ui.js clients-refresh-fix.js clients-waitlist-badge.js calendar-nav-fix.js day-header-stable.js breaks.js day-slot-actions.js worktime.js windows.js calendar-unread.js appointment-notifications.js settings-sections.js booking.html _site/
+          cp mobile-fix.css app-v4.css dayoff.css app-v4.js edit-save-fix.js waitlist-client.js telegram-client-link.js home-waitlist.js dayoff.js dayoff-workday-override.js notifications.js home-notifications.js telegram-webhook-ui.js clients-refresh-fix.js clients-waitlist-badge.js calendar-nav-fix.js day-header-stable.js breaks.js day-slot-actions.js worktime.js windows.js calendar-unread.js appointment-notifications.js settings-sections.js booking.html booking-identify.js _site/
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('_site/booking.html'); text=p.read_text()
+          text=text.replace('</body>','<script src="booking-identify.js?v=1"></script></body>')
+          p.write_text(text)
+          PY
           touch _site/.nojekyll
       - name: Configure Pages
         uses: actions/configure-pages@v5
