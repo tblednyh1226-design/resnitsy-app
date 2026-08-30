@@ -36,7 +36,7 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           p=Path('_site/booking.html'); text=p.read_text()
-          text=text.replace('</body>','<script src="booking-identify.js?v=1"></script></body>')
+          text=text.replace('</body>','<script src="booking-identify.js?v=3"></script></body>')
           p.write_text(text)
           PY
           touch _site/.nojekyll
