@@ -1,19 +1,47 @@
-const VERSION='slotelly-pwa-v4';
+const VERSION='slotelly-pwa-v5';
 const CACHE=VERSION;
-const SHELL=['./manifest.webmanifest','./app-icon.svg'];
+const SHELL=[
+  './',
+  './manifest.webmanifest?v=7','./app-icon.svg',
+  './mobile-fix.css?v=3','./app-v4.css?v=7','./dayoff.css?v=5',
+  './app-v4.js?v=8','./fast-network.js?v=7','./edit-save-fix.js?v=6',
+  './waitlist-client.js?v=4','./telegram-client-link.js?v=1','./home-waitlist.js?v=5',
+  './waitlist-smart-display.js?v=1','./waitlist-suggestions.js?v=1','./waitlist-card-history.js?v=2',
+  './dayoff.js?v=10','./notifications.js?v=8','./home-notifications.js?v=1','./telegram-webhook-ui.js?v=2',
+  './clients-refresh-fix.js?v=1','./clients-waitlist-badge.js?v=2','./calendar-nav-fix.js?v=3',
+  './day-header-stable.js?v=1','./breaks.js?v=4','./day-slot-actions.js?v=2','./worktime.js?v=7',
+  './dayoff-workday-override.js?v=2','./windows.js?v=2','./calendar-unread.js?v=1',
+  './appointment-notifications.js?v=2','./settings-sections.js?v=6','./pwa-register.js?v=8'
+];
+
+async function warmShell(){
+  const cache=await caches.open(CACHE);
+  await Promise.allSettled(SHELL.map(async url=>{
+    try{
+      const r=await fetch(url,{cache:'no-store'});
+      if(r&&r.ok) await cache.put(url,r.clone());
+    }catch(e){}
+  }));
+}
 
 self.addEventListener('install',event=>{
-  self.skipWaiting();
-  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).catch(()=>{}));
+  event.waitUntil((async()=>{await warmShell();await self.skipWaiting()})());
 });
 
 self.addEventListener('activate',event=>{
   event.waitUntil((async()=>{
     const keys=await caches.keys();
-    await Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)));
+    await Promise.all(keys.filter(k=>k.startsWith('slotelly-pwa-')&&k!==CACHE).map(k=>caches.delete(k)));
     await self.clients.claim();
   })());
 });
+
+async function refreshInBackground(req,key=req){
+  try{
+    const fresh=await fetch(req,{cache:'no-store'});
+    if(fresh&&fresh.ok){const cache=await caches.open(CACHE);await cache.put(key,fresh.clone())}
+  }catch(e){}
+}
 
 self.addEventListener('fetch',event=>{
   const req=event.request;
@@ -23,32 +51,28 @@ self.addEventListener('fetch',event=>{
 
   if(req.mode==='navigate'){
     event.respondWith((async()=>{
+      const cache=await caches.open(CACHE);
+      const cached=await cache.match('./')||await cache.match(req,{ignoreSearch:true});
+      if(cached){event.waitUntil(refreshInBackground(req,'./'));return cached}
       try{
         const fresh=await fetch(req,{cache:'no-store'});
-        if(fresh&&fresh.ok){
-          const cache=await caches.open(CACHE);
-          cache.put(req,fresh.clone()).catch(()=>{});
-          return fresh;
-        }
+        if(fresh&&fresh.ok){await cache.put('./',fresh.clone());return fresh}
       }catch(e){}
-      const cached=await caches.match(req);
-      if(cached) return cached;
-      return new Response('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="font-family:system-ui;padding:24px">Нет соединения. Закройте Slotelly и откройте снова.</body>',{headers:{'Content-Type':'text/html; charset=utf-8'}});
+      return new Response('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="font-family:system-ui;padding:24px">Slotelly пока не успела сохранить приложение на телефон. Подключите интернет и откройте ещё раз.</body>',{headers:{'Content-Type':'text/html; charset=utf-8'}});
     })());
     return;
   }
 
   event.respondWith((async()=>{
+    const cache=await caches.open(CACHE);
+    const cached=await cache.match(req);
+    if(cached){event.waitUntil(refreshInBackground(req));return cached}
     try{
       const fresh=await fetch(req,{cache:'no-store'});
-      if(fresh&&fresh.ok){
-        const cache=await caches.open(CACHE);
-        cache.put(req,fresh.clone()).catch(()=>{});
-        return fresh;
-      }
-    }catch(e){}
-    const cached=await caches.match(req);
-    if(cached) return cached;
-    return fetch(req);
+      if(fresh&&fresh.ok){await cache.put(req,fresh.clone());return fresh}
+      return fresh;
+    }catch(e){
+      return (await cache.match(req,{ignoreSearch:true}))||Response.error();
+    }
   })());
 });
