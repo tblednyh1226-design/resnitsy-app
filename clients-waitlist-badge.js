@@ -1,4 +1,4 @@
-/* Show active waitlist status directly in Clients directory. */
+/* Show active waitlist status directly in Clients directory without extra startup requests. */
 (function(){
   const base=window.renderClientRows;
   if(typeof base!=='function')return;
@@ -6,8 +6,10 @@
     const box=document.getElementById('clientList');
     box.innerHTML='<div class="sub">Загрузка клиентов…</div>';
     try{
-      const [z,w]=await Promise.all([serviceApi('clients',{q}),waitApi('list',{})]);
-      const rows=z.clients||[], waits=w.rows||[];
+      const z=await serviceApi('clients',{q});
+      const rows=z.clients||[];
+      let waits=Array.isArray(window.SLOTELLY_SNAPSHOT?.waitlist)?window.SLOTELLY_SNAPSHOT.waitlist:null;
+      if(!waits){try{waits=(await waitApi('list',{})).rows||[]}catch{waits=[]}}
       const activeByClient=new Map();
       waits.filter(x=>x.status==='active'||x.status==='offered'||x.status==='new').forEach(x=>{
         const key=x.client_id||x.clientId;
