@@ -1,0 +1,19 @@
+{
+  "name": "Slotelly",
+  "short_name": "Slotelly",
+  "description": "Расписание, клиенты и ловец окошек",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fffafc",
+  "theme_color": "#8f4f68",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
