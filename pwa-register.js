@@ -1,5 +1,5 @@
 (()=>{
-  const BUILD='2026-08-30.2320';
+  const BUILD='2026-08-30.2325';
   let deferredPrompt=null;
   const isStandalone=()=>window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
   async function hardRefreshIfNeeded(){try{const last=localStorage.getItem('slotelly_build');if(last===BUILD)return;localStorage.setItem('slotelly_build',BUILD);if('caches'in window){const keys=await caches.keys();await Promise.all(keys.filter(k=>k.startsWith('slotelly-pwa-')).map(k=>caches.delete(k)))}if('serviceWorker'in navigator){const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(async reg=>{try{await reg.update()}catch(e){}}))}if(!location.search.includes('slotelly_refresh='+BUILD)){const u=new URL(location.href);u.searchParams.set('slotelly_refresh',BUILD);location.replace(u.toString())}}catch(e){console.warn('Slotelly recovery failed',e)}}
@@ -8,7 +8,7 @@
 })();
 
 (()=>{
-  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]));
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   try{if(typeof loadWeeklySchedule==='function'){loadWeeklySchedule=async function(force=false){const snapDays=window.SLOTELLY_SNAPSHOT?.settings?.schedule?.weekdays;if(Array.isArray(snapDays)){weeklyWorkdays=snapDays;return}const localDays=(typeof settings!=='undefined')?settings?.schedule?.weekdays:null;if(Array.isArray(localDays)){weeklyWorkdays=localDays;return}if(force){try{const z=await dayoffApi('weekly');weeklyWorkdays=Array.isArray(z.weekdays)?z.weekdays:[0,1,2,3,4,5,6]}catch{weeklyWorkdays=[0,1,2,3,4,5,6]}}}}}catch(e){console.warn('Slotelly schedule stabilizer',e)}
   try{if(typeof renderCal==='function'){const baseRenderCal=renderCal;let running=false,pending=false;renderCal=async function(){if(running){pending=true;return}running=true;do{pending=false;try{await baseRenderCal()}catch(e){console.warn('Slotelly calendar render',e)}}while(pending);running=false}}}catch(e){console.warn('Slotelly calendar stabilizer',e)}
   try{if(typeof waitApi==='function'){waitApi=async function(action,data={}){const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),8000);try{const r=await fetch(WAIT_EDGE,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({pin:PIN,action,...data}),signal:ctl.signal,cache:'no-store'});const j=await r.json();if(!r.ok||!j.ok)throw Error(j.error||'Ошибка ловца окошек');return j}catch(e){if(e?.name==='AbortError')throw Error('Ловец не ответил за 8 секунд');throw e}finally{clearTimeout(timer)}}}}catch(e){console.warn('Slotelly waitlist transport',e)}
@@ -25,4 +25,5 @@
     }catch(e){const body=document.getElementById('mb');if(body)body.innerHTML=`<div class="card">${esc(e.message)}</div>`;else alert(e.message)}
   }
   window.openWaitlistOverview=openFastWaitlist;const bindWait=()=>{const b=document.getElementById('homeWaitlistBtn');if(b)b.onclick=()=>openFastWaitlist('active')};bindWait();window.addEventListener('slotelly:snapshot',bindWait);
+  let refreshTimer=0;window.addEventListener('slotelly:snapshot',()=>{clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>{try{const cal=document.getElementById('calendar'),cli=document.getElementById('clients');if(cal?.classList.contains('on')&&typeof renderCal==='function')renderCal();else if(cli?.classList.contains('on')&&typeof loadClients==='function')loadClients()}catch(e){console.warn('Slotelly visible refresh',e)}},80)});
 })();
