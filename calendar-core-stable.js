@@ -1,0 +1,62 @@
+/* Slotelly calendar core v1. One renderer for week/day, no legacy wrapper chain. */
+(function(){
+  const FAST='https://acukaqoguzkrphauovhk.supabase.co/functions/v1/resnitsy-fast';
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const localDate=iso=>new Date(iso).toLocaleDateString('sv-SE',{timeZone:'Europe/Moscow'});
+  const localTime=iso=>new Date(iso).toLocaleTimeString('ru-RU',{timeZone:'Europe/Moscow',hour:'2-digit',minute:'2-digit'});
+  const overlaps=(a,b,c,d)=>a<d&&b>c;
+  let renderSeq=0,lastGood=null;
+
+  async function freshCal(from,to){
+    const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),2200);
+    try{
+      const r=await fetch(FAST,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({pin:PIN,action:'calendar',from,to}),signal:ctl.signal,cache:'no-store'});
+      const j=await r.json();if(!r.ok||!j.ok)throw Error(j.error||'Ошибка календаря');lastGood=j.data;return j.data;
+    }finally{clearTimeout(timer)}
+  }
+  async function getCal(from,to){
+    try{return await freshCal(from,to)}catch(e){
+      try{const c=await rpc('master_app_calendar',{p_pin:PIN,p_from:from,p_to:to});if(c){lastGood=c;return c}}catch{}
+      return lastGood||{appointments:[],blocks:[],overrides:[]};
+    }
+  }
+  function schedule(){const snap=window.SLOTELLY_SNAPSHOT||{},s=snap.settings?.schedule||snap.settings||{};return {weekdays:Array.isArray(s.weekdays)?s.weekdays:[0,1,2,3,4,5,6],groups:Array.isArray(s.work_time_groups)?s.work_time_groups:[],overrides:new Set(Array.isArray(s.workday_overrides)?s.workday_overrides:[])}}
+  function timesFor(ds,cal){const s=schedule(),dow=new Date(ds+'T12:00:00+03:00').getDay(),g=s.groups.find(x=>(x.days||[]).includes(dow));let times=g?[...(g.times||[])]:[];if(!times.length&&s.weekdays.includes(dow))times=['10:00','13:00','16:00','19:00'];const extra=(cal.overrides||[]).filter(o=>o.is_available&&localDate(o.slot_start)===ds).map(o=>localTime(o.slot_start));return [...new Set([...times,...extra])].sort()}
+  function dayOff(ds,cal){const s=schedule(),dow=new Date(ds+'T12:00:00+03:00').getDay(),weekly=!s.weekdays.includes(dow)&&!s.overrides.has(ds),st=new Date(ds+'T00:00:00+03:00'),en=new Date(ds+'T23:59:59+03:00'),manual=(cal.blocks||[]).some(b=>b.label==='Выходной'&&new Date(b.starts_at)<=en&&new Date(b.ends_at)>st);return weekly||manual}
+  function visibleAppointments(cal,ds){return (cal.appointments||[]).filter(a=>a.status!=='cancelled'&&a.status!=='canceled'&&localDate(a.starts_at)===ds)}
+  function slotBlocked(cal,aps,ds,t){const iso=new Date(ds+'T'+t+':00+03:00').toISOString(),st=new Date(iso),en=new Date(st.getTime()+30*60000),ov=(cal.overrides||[]).find(o=>new Date(o.slot_start).getTime()===st.getTime());if(ov&&ov.is_available===false)return true;if(aps.some(a=>overlaps(st,en,new Date(a.starts_at),new Date(a.ends_at))))return true;if((cal.blocks||[]).some(b=>overlaps(st,en,new Date(b.starts_at),new Date(b.ends_at))))return true;return false}
+
+  async function renderWeek(){
+    const seq=++renderSeq;weekStart=monday(weekStart||focus);const from=new Date(weekStart+'T00:00:00+03:00').toISOString(),to=new Date(add(weekStart,7)+'T00:00:00+03:00').toISOString(),cal=await getCal(from,to);if(seq!==renderSeq)return;lastCal=cal;
+    document.getElementById('period').textContent=`${ruDate(weekStart,{day:'numeric',month:'short'})} — ${ruDate(add(weekStart,6),{day:'numeric',month:'short',year:'numeric'})}`;
+    const w=document.getElementById('week');w.innerHTML='';const h=Math.max(420,w.clientHeight||520),today=todayStr();
+    for(let i=0;i<7;i++){
+      const ds=add(weekStart,i),off=dayOff(ds,cal),aps=visibleAppointments(cal,ds),col=document.createElement('div');col.className='day'+(off?' day-off':'');
+      col.innerHTML=`<div class="dh ${ds===focus?'selected':''} ${ds===today?'today':''}"><strong>${ruDate(ds,{weekday:'short'}).replace('.','').toUpperCase()}</strong>${ruDate(ds,{day:'numeric'})}</div>`;
+      col.querySelector('.dh').onclick=()=>{focus=ds;view='day';renderCal()};
+      if(off){const mark=document.createElement('div');mark.className='dayoff-mark';mark.textContent='ВЫХОДНОЙ';col.appendChild(mark)}
+      for(const a of aps){const st=localTime(a.starts_at),[hh,mm]=st.split(':').map(Number),dur=Math.max(30,(new Date(a.ends_at)-new Date(a.starts_at))/60000),m=hh*60+mm,b=document.createElement('button');b.className='appt '+(a.status||'new');b.style.top=(42+(m-540)/840*(h-42))+'px';b.style.height=Math.max(24,dur/840*(h-42))+'px';b.innerHTML=`<strong>${st} ${esc(a.client_name||'Клиент')}</strong><small>${esc((a.services||[]).map(s=>s.name).join(' + '))}</small>`;b.onclick=e=>{e.stopPropagation();showAppt(a)};col.appendChild(b)}
+      if(!off)for(const t of timesFor(ds,cal)){if(slotBlocked(cal,aps,ds,t))continue;const [hh,mm]=t.split(':').map(Number),m=hh*60+mm;if(m<540||m>1380)continue;const b=document.createElement('button');b.className='free';b.style.top=(42+(m-540)/840*(h-42))+'px';b.textContent=t;b.onclick=e=>{e.stopPropagation();focus=ds;view='day';renderCal()};col.appendChild(b)}
+      w.appendChild(col)
+    }
+  }
+
+  async function renderDay(){
+    const seq=++renderSeq,target=focus,from=new Date(target+'T00:00:00+03:00').toISOString(),to=new Date(add(target,1)+'T00:00:00+03:00').toISOString(),cal=await getCal(from,to);if(seq!==renderSeq)return;lastCal=cal;window.lastDayCal=cal;
+    const period=document.getElementById('period');period.innerHTML=`<span class="period-weekday">${ruDate(target,{weekday:'long'})}</span><span class="period-date">${ruDate(target,{day:'numeric',month:'long'})}</span>`;
+    const dv=document.getElementById('dayview'),start=8,end=22,rowH=64,total=(end-start)*rowH,off=dayOff(target,cal);
+    const strip=Array.from({length:7},(_,i)=>add(target,i-3)).map(ds=>`<button class="day-date-btn ${ds===target?'on':''}" data-date="${ds}">${ruDate(ds,{weekday:'short'})}<br><b>${ruDate(ds,{day:'numeric'})}</b></button>`).join('');
+    dv.classList.toggle('day-off-view',off);dv.innerHTML=`<div class="day-date-strip">${strip}</div>${off?'<div class="dayoff-status" style="min-height:40px"><b>Выходной</b></div>':''}<div class="day-canvas" style="height:${total}px"></div>`;
+    dv.querySelectorAll('.day-date-btn').forEach(b=>b.onclick=()=>{focus=b.dataset.date;view='day';renderCal()});const canvas=dv.querySelector('.day-canvas');
+    for(let h=start;h<=end;h++){const y=(h-start)*rowH,row=document.createElement('div');row.className='day-hour';row.style.top=y+'px';row.innerHTML=`<span class="day-hour-label">${String(h).padStart(2,'0')}:00</span>${h<end?'<span class="day-half-line"></span>':''}`;canvas.appendChild(row)}
+    const aps=visibleAppointments(cal,target);
+    if(!off)for(const t of timesFor(target,cal)){if(slotBlocked(cal,aps,target,t))continue;const [hh,mm]=t.split(':').map(Number);if(hh<start||hh>=end)continue;const b=document.createElement('button');b.className='day-slot available';b.style.top=(((hh*60+mm)-start*60)/60*rowH+2)+'px';b.innerHTML=`<span class="slot-book-time">${t}</span><span class="slot-state-pill on">Доступно</span>`;b.onclick=e=>{e.preventDefault();e.stopPropagation();if(typeof chooseSlotAction==='function')chooseSlotAction(target,t);else form(null,target,t)};canvas.appendChild(b)}
+    for(const a of aps){const st=localTime(a.starts_at),[hh,mm]=st.split(':').map(Number),dur=Math.max(30,(new Date(a.ends_at)-new Date(a.starts_at))/60000);if(hh<start||hh>=end)continue;const b=document.createElement('button');b.className='day-appt '+(a.status||'new');b.style.top=(((hh*60+mm)-start*60)/60*rowH)+'px';b.style.height=Math.max(34,dur/60*rowH)+'px';b.innerHTML=`<strong>${st} · ${esc(a.client_name||'Клиент')}</strong><small>${esc((a.services||[]).map(s=>s.name).join(' + '))}</small>`;b.onclick=()=>showAppt(a);canvas.appendChild(b)}
+    for(const x of (cal.blocks||[]).filter(b=>b.source==='manual_break'&&localDate(b.starts_at)===target)){const st=localTime(x.starts_at),en=localTime(x.ends_at),[sh,sm]=st.split(':').map(Number),[eh,em]=en.split(':').map(Number),dur=Math.max(15,eh*60+em-(sh*60+sm));if(sh<start||sh>=end)continue;const b=document.createElement('button');b.className='day-break';b.style.top=(((sh*60+sm)-start*60)/60*rowH)+'px';b.style.height=Math.max(30,dur/60*rowH)+'px';b.innerHTML=`<strong>${st}–${en} · Перерыв</strong><small>${esc(x.label||'Личное дело')}</small>`;b.onclick=e=>{e.stopPropagation();if(typeof breakForm==='function')breakForm(x)};canvas.appendChild(b)}
+  }
+
+  window.renderWeekV4=renderWeek;window.renderDayV4=renderDay;
+  window.renderCal=async function(){const wt=document.getElementById('weekTab'),dt=document.getElementById('dayTab'),w=document.getElementById('week'),dv=document.getElementById('dayview');wt.classList.toggle('on',view==='week');dt.classList.toggle('on',view==='day');w.style.display=view==='week'?'grid':'none';dv.classList.toggle('on',view==='day');document.getElementById('calSub').textContent=view==='week'?'Неделя целиком':'Выбранный день';try{if(view==='week')await renderWeek();else await renderDay()}catch(e){document.getElementById('period').textContent='Ошибка';(view==='week'?w:dv).innerHTML=`<div class="card">${esc(e.message)}</div>`}};
+  function rebind(id,fn){const o=document.getElementById(id);if(!o)return;const n=o.cloneNode(true);o.replaceWith(n);n.onclick=fn}
+  rebind('weekTab',()=>{view='week';weekStart=monday(focus);renderCal()});rebind('dayTab',()=>{view='day';renderCal()});rebind('prev',()=>{if(view==='week'){weekStart=add(weekStart,-7);focus=weekStart}else focus=add(focus,-1);renderCal()});rebind('next',()=>{if(view==='week'){weekStart=add(weekStart,7);focus=weekStart}else focus=add(focus,1);renderCal()});rebind('todayBtn',()=>{focus=todayStr();weekStart=monday(focus);renderCal()});
+})();
