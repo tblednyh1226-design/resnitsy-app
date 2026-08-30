@@ -48,7 +48,7 @@
     });
     (async()=>{
       try{
-        const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});
+        const reg=await navigator.serviceWorker.register('./sw.js?v=3',{updateViaCache:'none'});
         await reg.update();
         setInterval(()=>reg.update().catch(()=>{}),15*60*1000);
       }catch(e){
