@@ -1,5 +1,5 @@
 (()=>{
-  const BUILD='2026-08-30.2250';
+  const BUILD='2026-08-30.2300';
   let deferredPrompt=null;
   const isStandalone=()=>window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
   async function hardRefreshIfNeeded(){try{const last=localStorage.getItem('slotelly_build');if(last===BUILD)return;localStorage.setItem('slotelly_build',BUILD);if('caches'in window){const keys=await caches.keys();await Promise.all(keys.filter(k=>k.startsWith('slotelly-pwa-')).map(k=>caches.delete(k)))}if('serviceWorker'in navigator){const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(async reg=>{try{await reg.update()}catch(e){}}))}if(!location.search.includes('slotelly_refresh='+BUILD)){const u=new URL(location.href);u.searchParams.set('slotelly_refresh',BUILD);location.replace(u.toString())}}catch(e){console.warn('Slotelly recovery failed',e)}}
