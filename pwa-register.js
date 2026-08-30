@@ -1,18 +1,59 @@
 (()=>{
-  if(!('serviceWorker' in navigator)) return;
-  let refreshing=false;
-  navigator.serviceWorker.addEventListener('controllerchange',()=>{
-    if(refreshing) return;
-    refreshing=true;
-    window.location.reload();
+  let deferredPrompt=null;
+  const isStandalone=()=>window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
+
+  function ensureInstallButton(){
+    if(isStandalone()||document.getElementById('slotellyInstallBtn')) return;
+    const btn=document.createElement('button');
+    btn.id='slotellyInstallBtn';
+    btn.type='button';
+    btn.textContent='Установить Slotelly';
+    btn.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:9999;border:0;border-radius:16px;padding:12px 18px;font:600 15px system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#8f4f68;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.18);max-width:calc(100vw - 32px);white-space:nowrap;';
+    btn.addEventListener('click',async()=>{
+      if(deferredPrompt){
+        deferredPrompt.prompt();
+        try{ await deferredPrompt.userChoice; }catch(e){}
+        deferredPrompt=null;
+        btn.remove();
+        return;
+      }
+      const inApp=/wv|Telegram|Instagram|FBAN|FBAV/i.test(navigator.userAgent);
+      if(inApp){
+        alert('Откройте эту страницу в Chrome через меню ⋮ → «Открыть в Chrome», затем нажмите «Установить Slotelly».');
+      }else{
+        alert('В Chrome откройте меню ⋮ и выберите «Установить приложение» или «Добавить на главный экран».');
+      }
+    });
+    document.body.appendChild(btn);
+  }
+
+  window.addEventListener('beforeinstallprompt',(e)=>{
+    e.preventDefault();
+    deferredPrompt=e;
+    ensureInstallButton();
   });
-  window.addEventListener('load',async()=>{
-    try{
-      const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});
-      await reg.update();
-      setInterval(()=>reg.update().catch(()=>{}),15*60*1000);
-    }catch(e){
-      console.warn('PWA registration failed',e);
-    }
+  window.addEventListener('appinstalled',()=>{
+    deferredPrompt=null;
+    document.getElementById('slotellyInstallBtn')?.remove();
+  });
+
+  window.addEventListener('load',()=>{
+    ensureInstallButton();
+    if(!('serviceWorker' in navigator)) return;
+    let refreshing=false;
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{
+      if(refreshing) return;
+      refreshing=true;
+      window.location.reload();
+    });
+    (async()=>{
+      try{
+        const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});
+        await reg.update();
+        setInterval(()=>reg.update().catch(()=>{}),15*60*1000);
+      }catch(e){
+        console.warn('PWA registration failed',e);
+      }
+    })();
   });
 })();
