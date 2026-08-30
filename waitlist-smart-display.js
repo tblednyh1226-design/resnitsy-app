@@ -1,0 +1,8 @@
+/* Make free-text better-time wishes readable in waitlist cards. */
+(function(){
+ const days={воскресенье:0,воскресенья:0,понедельник:1,понедельника:1,вторник:2,вторника:2,среда:3,среду:3,четверг:4,четверга:4,пятница:5,пятницу:5,суббота:6,субботу:6};
+ function nextDay(wd){const n=new Date(),cur=new Date(n.toLocaleString('en-US',{timeZone:'Europe/Moscow'})),add=(wd-cur.getDay()+7)%7||7;cur.setDate(cur.getDate()+add);return cur.toLocaleDateString('ru-RU',{day:'numeric',month:'short'}).replace('.','')}
+ function parse(text){const s=String(text||'').toLowerCase().replace(',', '.');let wd=null;for(const [k,v] of Object.entries(days))if(s.includes(k)){wd=v;break}const tm=s.match(/(?:в\s*районе|около|примерно|после|до|в)?\s*(\d{1,2})(?:[.:](\d{1,2}))?/);if(wd===null&&!tm)return null;let time='';if(tm){const h=Math.min(23,Number(tm[1])),m=tm[2]?Math.min(59,Number(tm[2])):0;time=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')}return{date:wd===null?'':nextDay(wd),time}}
+ function enhance(){document.querySelectorAll('.wl-request-card').forEach(card=>{if(card.dataset.smartDone)return;const line=card.querySelector('.wl-service-line'),sum=card.querySelector('.wl-summary');if(!line||!sum)return;const txt=line.textContent.trim(),p=parse(txt);if(!p)return;card.dataset.smartDone='1';sum.innerHTML='<span>🎯 '+(p.date||'Подходящий день')+'</span><span>🕐 '+(p.time?('около '+p.time):'время по пожеланию')+'</span>';line.innerHTML='<b>Пожелание:</b> '+line.innerHTML;});}
+ new MutationObserver(enhance).observe(document.body,{childList:true,subtree:true});enhance();
+})();
