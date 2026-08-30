@@ -1,6 +1,17 @@
 /* One-day working exception for a recurring weekly day off */
 let workdayOverrides=new Set(),workdayOverrideGroups=[];
-loadWeeklySchedule=async function(){
+loadWeeklySchedule=async function(force=false){
+  const snap=window.SLOTELLY_SNAPSHOT;
+  const days=snap?.settings?.schedule?.weekdays;
+  const groups=snap?.settings?.schedule?.work_time_groups||snap?.settings?.work_time_groups;
+  const overrides=snap?.settings?.schedule?.workday_overrides||snap?.settings?.workday_overrides;
+  if(!force&&Array.isArray(days)){
+    weeklyWorkdays=days;
+    workdayOverrides=new Set(Array.isArray(overrides)?overrides:[]);
+    workdayOverrideGroups=Array.isArray(groups)?groups:[];
+    return;
+  }
+  if(!force&&Array.isArray(weeklyWorkdays)&&weeklyWorkdays.length)return;
   try{
     const z=await dayoffApi('weekly');
     weeklyWorkdays=Array.isArray(z.weekdays)?z.weekdays:[0,1,2,3,4,5,6];
