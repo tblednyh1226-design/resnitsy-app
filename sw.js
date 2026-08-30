@@ -1,4 +1,4 @@
-const VERSION='slotelly-pwa-v7';
+const VERSION='slotelly-pwa-v8';
 const CACHE=VERSION;
 const SHELL=[
   './','./manifest.webmanifest?v=8','./app-icon.svg',
@@ -10,7 +10,7 @@ const SHELL=[
   './clients-refresh-fix.js?v=1','./clients-waitlist-badge.js?v=2','./calendar-nav-fix.js?v=3',
   './day-header-stable.js?v=1','./breaks.js?v=4','./day-slot-actions.js?v=2','./worktime.js?v=8',
   './dayoff-workday-override.js?v=3','./windows.js?v=2','./calendar-unread.js?v=1',
-  './appointment-notifications.js?v=2','./settings-sections.js?v=6','./calendar-day-stable.js?v=1','./pwa-register.js?v=9'
+  './appointment-notifications.js?v=2','./settings-sections.js?v=6','./calendar-core-stable.js?v=1','./waitlist-overview-stable.js?v=1','./pwa-register.js?v=10'
 ];
 async function warmShell(){const cache=await caches.open(CACHE);await Promise.allSettled(SHELL.map(async url=>{try{const r=await fetch(url,{cache:'no-store'});if(r&&r.ok)await cache.put(url,r.clone())}catch(e){}}))}
 self.addEventListener('install',event=>{event.waitUntil((async()=>{await warmShell();await self.skipWaiting()})())});
