@@ -1,4 +1,4 @@
-// Slotelly fast network layer v2: override the actual global bindings used by legacy scripts.
+// Slotelly fast network layer v3: one no-preflight Edge route for bootstrap/calendar.
 (() => {
   const FAST_EDGE='https://acukaqoguzkrphauovhk.supabase.co/functions/v1/resnitsy-fast';
   const MASTER_EDGE='https://acukaqoguzkrphauovhk.supabase.co/functions/v1/resnitsy-master';
@@ -34,6 +34,11 @@
   };
 
   rpc=async function(name,body={}){
+    if(name==='master_app_bootstrap'){
+      const j=await postPlain(FAST_EDGE,{pin:PIN,action:'bootstrap'});
+      if(!j?.ok) throw Error(j?.error||'Ошибка загрузки');
+      return {services:j.services||[],settings:j.settings||{},categories:j.categories||[]};
+    }
     if(name==='master_app_calendar'){
       const j=await postPlain(FAST_EDGE,{pin:PIN,action:'calendar',from:body.p_from,to:body.p_to});
       if(!j?.ok) throw Error(j?.error||'Ошибка календаря');
@@ -47,6 +52,5 @@
     return originalRpc(name,body);
   };
 
-  // One lightweight probe on each fresh app start. It gives us an exact server-side trace.
   postPlain(FAST_EDGE,{pin:PIN,action:'ping'}).catch(()=>{});
 })();
