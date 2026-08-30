@@ -1,4 +1,4 @@
-const VERSION='slotelly-pwa-v1';
+const VERSION='slotelly-pwa-v2';
 const CACHE=VERSION;
 const SHELL=['./','./manifest.webmanifest','./app-icon.svg'];
 
@@ -21,22 +21,43 @@ self.addEventListener('fetch',event=>{
   const url=new URL(req.url);
   if(url.origin!==location.origin) return;
 
+  // HTML/navigation: try fresh briefly, then instantly fall back to cache.
+  if(req.mode==='navigate'){
+    event.respondWith((async()=>{
+      const cached=await caches.match(req) || await caches.match('./');
+      try{
+        const fresh=await Promise.race([
+          fetch(req,{cache:'no-store'}),
+          new Promise((_,reject)=>setTimeout(()=>reject(new Error('network timeout')),1800))
+        ]);
+        if(fresh && fresh.ok){
+          const cache=await caches.open(CACHE);
+          cache.put(req,fresh.clone()).catch(()=>{});
+          return fresh;
+        }
+      }catch(e){}
+      if(cached) return cached;
+      return fetch(req);
+    })());
+    return;
+  }
+
+  // Static JS/CSS/images: show cached file immediately and refresh it in background.
   event.respondWith((async()=>{
-    try{
-      const fresh=await fetch(req,{cache:'no-store'});
+    const cached=await caches.match(req);
+    const network=fetch(req,{cache:'no-store'}).then(async fresh=>{
       if(fresh && fresh.ok){
         const cache=await caches.open(CACHE);
         cache.put(req,fresh.clone()).catch(()=>{});
       }
       return fresh;
-    }catch(err){
-      const cached=await caches.match(req);
-      if(cached) return cached;
-      if(req.mode==='navigate'){
-        const home=await caches.match('./');
-        if(home) return home;
-      }
-      throw err;
+    }).catch(()=>null);
+    if(cached){
+      event.waitUntil(network);
+      return cached;
     }
+    const fresh=await network;
+    if(fresh) return fresh;
+    throw new Error('offline');
   })());
 });
