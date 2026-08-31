@@ -2,7 +2,6 @@ package ru.slotelly.app.data
 
 import com.google.gson.JsonObject
 import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.http.Body
 import retrofit2.http.Headers
 import retrofit2.http.POST
@@ -28,7 +27,6 @@ interface SlotellyApi {
                             .build()
                     )
                 }
-                .addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC })
                 .build()
             return retrofit2.Retrofit.Builder()
                 .baseUrl(BuildConfig.SUPABASE_URL + "/")
