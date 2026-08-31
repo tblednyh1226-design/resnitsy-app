@@ -44,6 +44,14 @@ interface SlotellyApi {
     @POST("rest/v1/rpc/master_create_telegram_link")
     suspend fun createTelegramLink(@Body body: Map<String, Any?>): JsonObject
 
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/rpc/slotelly_mobile_settings_patch")
+    suspend fun settingsPatch(@Body body: Map<String, Any?>): JsonObject
+
+    @Headers("Content-Type: application/json")
+    @POST("functions/v1/resnitsy-notifications")
+    suspend fun notifications(@Body body: Map<String, Any?>): JsonObject
+
     companion object {
         fun create(): SlotellyApi {
             val client = OkHttpClient.Builder()
