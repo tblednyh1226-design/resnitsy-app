@@ -35,12 +35,15 @@ interface ServiceDao {
 interface CalendarMetaDao {
     @Query("select * from calendar_blocks order by startsAt") fun observeBlocks(): Flow<List<CalendarBlockEntity>>
     @Query("select * from availability_overrides order by slotStart") fun observeOverrides(): Flow<List<AvailabilityOverrideEntity>>
+    @Query("select * from availability_overrides order by slotStart") suspend fun allOverrides(): List<AvailabilityOverrideEntity>
     @Query("select * from app_state where key='main' limit 1") fun observeState(): Flow<AppStateEntity?>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertBlocks(items: List<CalendarBlockEntity>)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertOverrides(items: List<AvailabilityOverrideEntity>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertOverride(item: AvailabilityOverrideEntity)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertState(item: AppStateEntity)
     @Query("delete from calendar_blocks") suspend fun clearBlocks()
-    @Query("delete from availability_overrides") suspend fun clearOverrides()
+    @Query("delete from availability_overrides where pending=0") suspend fun clearSyncedOverrides()
+    @Query("update availability_overrides set pending=0 where slotStart=:slot") suspend fun clearOverridePending(slot: String)
 }
 
 @Dao
@@ -53,7 +56,7 @@ interface MutationDao {
 
 @Database(
     entities = [AppointmentEntity::class, ClientEntity::class, ServiceEntity::class, CalendarBlockEntity::class, AvailabilityOverrideEntity::class, AppStateEntity::class, PendingMutationEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class SlotellyDatabase : RoomDatabase() {
