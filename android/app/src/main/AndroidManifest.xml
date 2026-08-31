@@ -4,7 +4,7 @@
     <application
         android:name=".SlotellyApp"
         android:allowBackup="true"
-        android:label="Slotelly"
+        android:label="Slotelly NEW"
         android:icon="@drawable/ic_slotelly"
         android:roundIcon="@drawable/ic_slotelly"
         android:theme="@style/Theme.Slotelly">
