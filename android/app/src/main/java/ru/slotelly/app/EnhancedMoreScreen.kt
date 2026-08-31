@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -92,16 +93,35 @@ private fun WorkSettingsOverlay(pin:String,api:NativeSettingsExtras,settings:Jso
     val scope=rememberCoroutineScope();val schedule=settings.getAsJsonObject("schedule")?:JsonObject()
     var start by remember{mutableStateOf(schedule.get("start")?.asString?:"10:00")};var end by remember{mutableStateOf(schedule.get("end")?.asString?:"22:30")}
     var weekdays by remember{mutableStateOf(schedule.getAsJsonArray("weekdays")?.map{it.asInt}?.toSet()?:emptySet())};var saving by remember{mutableStateOf(false)};var error by remember{mutableStateOf("")}
+    val fullDays=listOf("Понедельник","Вторник","Среда","Четверг","Пятница","Суббота","Воскресенье")
     FullOverlay(onClose){
-        Text("Режим работы",style=MaterialTheme.typography.headlineSmall);Text("Базовые рабочие дни и границы дня")
-        Spacer(Modifier.height(10.dp));Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){(0..6).forEach{d->FilterChip(selected=d in weekdays,onClick={weekdays=if(d in weekdays)weekdays-d else weekdays+d},label={Text(dayName(d))})}}
-        Spacer(Modifier.height(8.dp));Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){OutlinedTextField(start,{start=it},label={Text("Начало")},modifier=Modifier.weight(1f));OutlinedTextField(end,{end=it},label={Text("Конец")},modifier=Modifier.weight(1f))}
-        Spacer(Modifier.height(8.dp));Text("Индивидуальные группы времени и разовые выходные остаются в календаре/Окошках и не стираются этой формой.",style=MaterialTheme.typography.bodySmall)
-        if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error)
-        Spacer(Modifier.weight(1f));Button(onClick={saving=true;scope.launch{
+        Text("Режим работы",style=MaterialTheme.typography.headlineSmall)
+        Text("Выберите базовые рабочие дни",style=MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.height(8.dp))
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(6.dp)){
+            fullDays.forEachIndexed{d,label->
+                Card(colors=CardDefaults.cardColors(containerColor=if(d in weekdays) MaterialTheme.colorScheme.primaryContainer.copy(alpha=.55f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.45f)),modifier=Modifier.fillMaxWidth()){
+                    Row(Modifier.fillMaxWidth().padding(horizontal=14.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically){
+                        Text(label,modifier=Modifier.weight(1f),fontWeight=if(d in weekdays) FontWeight.SemiBold else FontWeight.Normal)
+                        Switch(checked=d in weekdays,onCheckedChange={on->weekdays=if(on) weekdays+d else weekdays-d})
+                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text("Границы рабочего дня",fontWeight=FontWeight.SemiBold)
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                OutlinedTextField(start,{start=it},label={Text("Начало")},singleLine=true,modifier=Modifier.weight(1f))
+                OutlinedTextField(end,{end=it},label={Text("Конец")},singleLine=true,modifier=Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(4.dp))
+            Text("Разовые выходные и ручные изменения окошек сохраняются отдельно и не стираются этой формой.",style=MaterialTheme.typography.bodySmall)
+            if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error)
+        }
+        Spacer(Modifier.height(10.dp))
+        Button(onClick={saving=true;scope.launch{
             val base=runCatching{EM_GSON.fromJson(schedule,MutableMap::class.java) as MutableMap<String,Any?>}.getOrElse{mutableMapOf()};base["start"]=start;base["end"]=end;base["weekdays"]=weekdays.sorted()
             runCatching{api.patchSettings(pin,mapOf("schedule" to base))}.onSuccess{onSaved()}.onFailure{error=it.message?:"Ошибка сохранения"};saving=false
-        }},enabled=!saving,modifier=Modifier.fillMaxWidth()){Text(if(saving)"Сохраняю…" else "Сохранить режим работы")}
+        }},enabled=!saving&&weekdays.isNotEmpty(),modifier=Modifier.fillMaxWidth()){Text(if(saving)"Сохраняю…" else "Сохранить режим работы")}
     }
 }
 
