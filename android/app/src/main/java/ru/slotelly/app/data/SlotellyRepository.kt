@@ -116,22 +116,27 @@ class SlotellyRepository(
     suspend fun saveAppointment(
         existingId: String?,
         client: ClientEntity,
-        service: ServiceEntity,
+        selectedServices: List<ServiceSelection>,
         startsAt: String,
-        price: Double = service.price,
-        duration: Int = service.duration,
         comment: String = ""
     ): String {
+        require(selectedServices.isNotEmpty()) { "Выберите услугу" }
         val localId = existingId ?: "local-${UUID.randomUUID()}"
-        val end = Instant.parse(startsAt).plusSeconds((duration + 30L) * 60L).toString()
-        val serviceJson = gson.toJson(listOf(mapOf(
-            "service_id" to service.id,
-            "name" to service.name,
-            "standard_price" to service.price,
-            "price" to price,
-            "duration" to duration
-        )))
+        val totalMinutes = selectedServices.sumOf { it.duration.coerceAtLeast(1) } + 30
+        val end = Instant.parse(startsAt).plusSeconds(totalMinutes * 60L).toString()
+        val servicePayload = selectedServices.mapIndexed { index, x ->
+            mapOf(
+                "service_id" to x.service.id,
+                "name" to x.service.name,
+                "standard_price" to x.service.price,
+                "price" to x.price,
+                "duration" to x.duration,
+                "sort_order" to index
+            )
+        }
+        val serviceJson = gson.toJson(servicePayload)
         val oldStatus = existingId?.let { db.appointments().get(it)?.status } ?: "new"
+        val oldPayments = existingId?.let { db.appointments().get(it)?.paymentsJson } ?: "[]"
         db.appointments().upsert(
             AppointmentEntity(
                 id = localId,
@@ -141,7 +146,7 @@ class SlotellyRepository(
                 endsAt = end,
                 status = oldStatus,
                 servicesJson = serviceJson,
-                paymentsJson = existingId?.let { db.appointments().get(it)?.paymentsJson } ?: "[]",
+                paymentsJson = oldPayments,
                 comment = comment,
                 pending = true
             )
@@ -150,13 +155,7 @@ class SlotellyRepository(
             "id" to existingId,
             "client_id" to client.id,
             "starts_at" to startsAt,
-            "services" to listOf(mapOf(
-                "service_id" to service.id,
-                "name" to service.name,
-                "standard_price" to service.price,
-                "price" to price,
-                "duration" to duration
-            )),
+            "services" to servicePayload,
             "comment" to comment,
             "status" to oldStatus,
             "_local_id" to localId,
@@ -165,6 +164,16 @@ class SlotellyRepository(
         db.mutations().add(PendingMutationEntity(action = "save_appointment", payloadJson = gson.toJson(payload)))
         return localId
     }
+
+    suspend fun saveAppointment(
+        existingId: String?,
+        client: ClientEntity,
+        service: ServiceEntity,
+        startsAt: String,
+        price: Double = service.price,
+        duration: Int = service.duration,
+        comment: String = ""
+    ): String = saveAppointment(existingId, client, listOf(ServiceSelection(service, price, duration)), startsAt, comment)
 
     suspend fun cancel(id: String) = setStatus(id, "cancelled")
     suspend fun markUnpaid(id: String) = setStatus(id, "completed_unpaid")
