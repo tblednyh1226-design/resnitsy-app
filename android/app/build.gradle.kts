@@ -12,8 +12,8 @@ android {
         applicationId = "ru.slotelly.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0-beta1"
         buildConfigField("String", "SUPABASE_URL", "\"https://acukaqoguzkrphauovhk.supabase.co\"")
         buildConfigField("String", "SUPABASE_KEY", "\"sb_publishable_2aKxmTx4WtnZglspnun9gA_goe71amD\"")
     }
@@ -38,6 +38,5 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.2")
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
-    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     implementation("com.google.code.gson:gson:2.11.0")
 }
