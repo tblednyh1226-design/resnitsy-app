@@ -40,6 +40,8 @@ private fun NativeSlotellyRoot(repo: SlotellyRepository) {
     var pin by remember { mutableStateOf("") }
     var initialized by remember { mutableStateOf(false) }
     var unlocked by remember { mutableStateOf(false) }
+    var loginBusy by remember { mutableStateOf(false) }
+    var loginError by remember { mutableStateOf("") }
     var tab by remember { mutableStateOf(NativeTab.CALENDAR) }
     var selectedAppointment by remember { mutableStateOf<AppointmentEntity?>(null) }
     var editAppointment by remember { mutableStateOf<AppointmentEntity?>(null) }
@@ -73,18 +75,41 @@ private fun NativeSlotellyRoot(repo: SlotellyRepository) {
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
                 Text("Slotelly NEW", style = MaterialTheme.typography.headlineLarge)
-                Text("Android 0.5 beta", style = MaterialTheme.typography.labelLarge)
+                Text("Новая Android-версия 0.5", style = MaterialTheme.typography.labelLarge)
                 Spacer(Modifier.height(18.dp))
-                OutlinedTextField(pin, { pin = it }, label = { Text("PIN мастера") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    pin,
+                    { pin = it; loginError = "" },
+                    label = { Text("PIN мастера") },
+                    singleLine = true,
+                    enabled = !loginBusy,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (loginError.isNotBlank()) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(loginError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
                 Spacer(Modifier.height(12.dp))
-                Button(onClick = {
-                    scope.launch {
-                        if (pin.isBlank()) return@launch
-                        context.dataStore.edit { it[PIN_KEY] = pin }
-                        unlocked = true
-                        launch { runCatching { repo.sync(pin) } }
-                    }
-                }, modifier = Modifier.fillMaxWidth()) { Text("Открыть Slotelly NEW") }
+                Button(
+                    onClick = {
+                        if (pin.isBlank() || loginBusy) return@Button
+                        loginBusy = true
+                        loginError = ""
+                        scope.launch {
+                            runCatching { repo.sync(pin) }
+                                .onSuccess {
+                                    context.dataStore.edit { it[PIN_KEY] = pin }
+                                    unlocked = true
+                                }
+                                .onFailure {
+                                    loginError = if (it.message?.contains("PIN", ignoreCase = true) == true) "Неверный PIN" else "Не удалось проверить PIN. Проверьте интернет и попробуйте ещё раз."
+                                }
+                            loginBusy = false
+                        }
+                    },
+                    enabled = !loginBusy && pin.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (loginBusy) "Проверяю…" else "Открыть Slotelly NEW") }
             }
         }
         return
