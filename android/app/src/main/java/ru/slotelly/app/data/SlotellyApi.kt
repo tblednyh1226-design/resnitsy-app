@@ -49,6 +49,10 @@ interface SlotellyApi {
     suspend fun settingsPatch(@Body body: Map<String, Any?>): JsonObject
 
     @Headers("Content-Type: application/json")
+    @POST("rest/v1/rpc/slotelly_mobile_set_online_booking")
+    suspend fun setOnlineBooking(@Body body: Map<String, Any?>): JsonObject
+
+    @Headers("Content-Type: application/json")
     @POST("functions/v1/resnitsy-notifications")
     suspend fun notifications(@Body body: Map<String, Any?>): JsonObject
 
