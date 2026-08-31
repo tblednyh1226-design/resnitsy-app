@@ -28,6 +28,7 @@ class SlotellyRepository(
     suspend fun sync(pin: String) {
         flush(pin)
         val pendingLocal = db.appointments().all().filter { it.pending }.associateBy { it.id }
+        val pendingOverrides = db.calendarMeta().allOverrides().filter { it.pending }.associateBy { it.slotStart }
         val now = ZonedDateTime.now(ZoneId.of("Europe/Moscow"))
         val from = now.minusDays(21).toInstant().toString()
         val to = now.plusDays(45).toInstant().toString()
@@ -93,17 +94,20 @@ class SlotellyRepository(
         db.calendarMeta().clearBlocks()
         db.calendarMeta().upsertBlocks(blockRows)
 
-        val overrideRows = cal?.getAsJsonArray("overrides")?.map { x ->
+        val serverOverrides = cal?.getAsJsonArray("overrides")?.map { x ->
             val o = x.asJsonObject
             AvailabilityOverrideEntity(
                 id = o["id"]?.asString ?: UUID.randomUUID().toString(),
                 slotStart = o["slot_start"].asString,
                 available = o["is_available"]?.asBoolean ?: false,
-                reason = o["reason"]?.takeUnless { it.isJsonNull }?.asString ?: ""
+                reason = o["reason"]?.takeUnless { it.isJsonNull }?.asString ?: "",
+                pending = false
             )
         } ?: emptyList()
-        db.calendarMeta().clearOverrides()
-        db.calendarMeta().upsertOverrides(overrideRows)
+        val mergedOverrides = serverOverrides.map { remote -> pendingOverrides[remote.slotStart] ?: remote }.toMutableList()
+        pendingOverrides.values.forEach { local -> if (mergedOverrides.none { it.slotStart == local.slotStart }) mergedOverrides += local }
+        db.calendarMeta().clearSyncedOverrides()
+        db.calendarMeta().upsertOverrides(mergedOverrides)
         db.calendarMeta().upsertState(AppStateEntity(settingsJson = gson.toJson(j["settings"] ?: JsonObject()), syncedAt = System.currentTimeMillis()))
     }
 
@@ -174,6 +178,19 @@ class SlotellyRepository(
         db.mutations().add(PendingMutationEntity(action = "payment", payloadJson = gson.toJson(mapOf("id" to id, "cash" to cash, "card" to card, "other" to other))))
     }
 
+    suspend fun setAvailability(slotStart: String, available: Boolean) {
+        db.calendarMeta().upsertOverride(
+            AvailabilityOverrideEntity(
+                id = "local-${slotStart.hashCode()}",
+                slotStart = slotStart,
+                available = available,
+                reason = if (available) "manual_on" else "manual_off",
+                pending = true
+            )
+        )
+        db.mutations().add(PendingMutationEntity(action = "availability", payloadJson = gson.toJson(mapOf("slot" to slotStart, "value" to available))))
+    }
+
     suspend fun createClient(pin: String, name: String, phone: String, messenger: String): ClientEntity {
         val j = api.call(ApiEnvelope(pin, "create_client", mapOf("name" to name, "phone" to phone, "messenger" to messenger)))
         val c = ClientEntity(
@@ -203,6 +220,8 @@ class SlotellyRepository(
                             db.appointments().upsert(old.copy(id = serverId, clientName = clientName.ifBlank { old.clientName }, endsAt = result["ends_at"]?.asString ?: old.endsAt, pending = false))
                         }
                     } else if (localId != null) db.appointments().clearPending(localId)
+                } else if (m.action == "availability") {
+                    raw["slot"]?.toString()?.let { db.calendarMeta().clearOverridePending(it) }
                 } else {
                     raw["id"]?.toString()?.let { db.appointments().clearPending(it) }
                 }
