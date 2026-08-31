@@ -52,7 +52,8 @@ data class AvailabilityOverrideEntity(
     @PrimaryKey val id: String,
     val slotStart: String,
     val available: Boolean,
-    val reason: String = ""
+    val reason: String = "",
+    val pending: Boolean = false
 )
 
 @Entity(tableName = "app_state")
