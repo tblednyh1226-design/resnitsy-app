@@ -156,7 +156,7 @@ private fun SlotellyNativeRoot(repo: SlotellyRepository) {
     }
 
     if (availability) {
-        AvailabilityOverlay(overrides = overrides, repo = repo, pin = pin, onClose = { availability = false })
+        AvailabilityOverlay(overrides = overrides, appointments = appts, repo = repo, pin = pin, onClose = { availability = false })
     }
 
     paying?.let { a ->
