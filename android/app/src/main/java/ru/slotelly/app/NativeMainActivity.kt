@@ -72,7 +72,8 @@ private fun NativeSlotellyRoot(repo: SlotellyRepository) {
     if (!unlocked) {
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
-                Text("Slotelly", style = MaterialTheme.typography.headlineLarge)
+                Text("Slotelly NEW", style = MaterialTheme.typography.headlineLarge)
+                Text("Android 0.5 beta", style = MaterialTheme.typography.labelLarge)
                 Spacer(Modifier.height(18.dp))
                 OutlinedTextField(pin, { pin = it }, label = { Text("PIN мастера") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(12.dp))
@@ -83,7 +84,7 @@ private fun NativeSlotellyRoot(repo: SlotellyRepository) {
                         unlocked = true
                         launch { runCatching { repo.sync(pin) } }
                     }
-                }, modifier = Modifier.fillMaxWidth()) { Text("Открыть Slotelly") }
+                }, modifier = Modifier.fillMaxWidth()) { Text("Открыть Slotelly NEW") }
             }
         }
         return
@@ -92,7 +93,12 @@ private fun NativeSlotellyRoot(repo: SlotellyRepository) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Slotelly") },
+                title = {
+                    Column {
+                        Text("Slotelly NEW")
+                        Text("Android 0.5 beta", style = MaterialTheme.typography.labelSmall)
+                    }
+                },
                 actions = {
                     if (tab == NativeTab.CALENDAR) TextButton(onClick = { showAvailability = true }) { Text("Окошки") }
                     val fresh = state?.syncedAt?.let { System.currentTimeMillis() - it < 120_000 } == true
