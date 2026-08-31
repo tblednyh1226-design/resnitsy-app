@@ -78,6 +78,7 @@ class SlotellyRepository(
             )
         } ?: emptyList()
 
+        db.appointments().clearSyncedRange(from, to)
         val merged = serverRows.map { remote -> pendingLocal[remote.id] ?: remote }.toMutableList()
         pendingLocal.values.forEach { local -> if (merged.none { it.id == local.id }) merged += local }
         db.appointments().upsert(merged)
