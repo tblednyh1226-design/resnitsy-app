@@ -11,6 +11,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import ru.slotelly.app.data.AppointmentEntity
 import ru.slotelly.app.data.SlotellyRepository
@@ -35,8 +36,25 @@ fun SlotellyRoot(repo: SlotellyRepository) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var pin by remember { mutableStateOf("") }
+    var initialized by remember { mutableStateOf(false) }
     var unlocked by remember { mutableStateOf(false) }
     val appts by repo.appointments().collectAsStateWithLifecycle(emptyList())
+
+    LaunchedEffect(Unit) {
+        val saved = context.dataStore.data.first()[PIN_KEY].orEmpty()
+        pin = saved
+        unlocked = saved.isNotBlank()
+        initialized = true
+        if (saved.isNotBlank()) launch { try { repo.sync(saved) } catch (_: Exception) { } }
+    }
+
+    // The first local Room frame is never blocked by network. Only first-time setup asks for PIN.
+    if (!initialized) {
+        Surface(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize())
+        }
+        return
+    }
 
     if (!unlocked) {
         Surface(Modifier.fillMaxSize()) {
@@ -47,9 +65,10 @@ fun SlotellyRoot(repo: SlotellyRepository) {
                 Spacer(Modifier.height(12.dp))
                 Button(onClick = {
                     scope.launch {
+                        if (pin.isBlank()) return@launch
                         context.dataStore.edit { it[PIN_KEY] = pin }
                         unlocked = true
-                        try { repo.sync(pin) } catch (_: Exception) { }
+                        launch { try { repo.sync(pin) } catch (_: Exception) { } }
                     }
                 }) { Text("Открыть") }
             }
@@ -59,8 +78,12 @@ fun SlotellyRoot(repo: SlotellyRepository) {
 
     Scaffold(topBar = { TopAppBar(title = { Text("Slotelly · Неделя") }) }) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
-            WeekGrid(appts, Modifier.weight(1f), onCancel = { id -> scope.launch { repo.cancel(id) } })
-            LaunchedEffect(Unit) { try { repo.sync(pin) } catch (_: Exception) { } }
+            WeekGrid(appts, Modifier.weight(1f), onCancel = { id ->
+                scope.launch {
+                    repo.cancel(id)
+                    launch { try { repo.flush(pin) } catch (_: Exception) { } }
+                }
+            })
         }
     }
 }
@@ -81,7 +104,12 @@ fun WeekGrid(appts: List<AppointmentEntity>, modifier: Modifier = Modifier, onCa
                     day.forEach { a ->
                         AssistChip(
                             onClick = {},
-                            label = { Text(java.time.Instant.parse(a.startsAt).atZone(zone).toLocalTime().toString().take(5) + " " + a.clientName.take(8), maxLines = 2) },
+                            label = {
+                                Text(
+                                    java.time.Instant.parse(a.startsAt).atZone(zone).toLocalTime().toString().take(5) + " " + a.clientName.take(8),
+                                    maxLines = 2
+                                )
+                            },
                             modifier = Modifier.fillMaxWidth()
                         )
                         TextButton(onClick = { onCancel(a.id) }, contentPadding = PaddingValues(0.dp)) {
