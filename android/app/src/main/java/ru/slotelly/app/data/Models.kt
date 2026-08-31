@@ -38,6 +38,12 @@ data class ServiceEntity(
     val category: String = ""
 )
 
+data class ServiceSelection(
+    val service: ServiceEntity,
+    val price: Double = service.price,
+    val duration: Int = service.duration
+)
+
 @Entity(tableName = "calendar_blocks")
 data class CalendarBlockEntity(
     @PrimaryKey val id: String,
