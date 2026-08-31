@@ -56,6 +56,10 @@ interface SlotellyApi {
     @POST("functions/v1/resnitsy-notifications")
     suspend fun notifications(@Body body: Map<String, Any?>): JsonObject
 
+    @Headers("Content-Type: application/json")
+    @POST("functions/v1/resnitsy-dayoff")
+    suspend fun dayoff(@Body body: Map<String, Any?>): JsonObject
+
     companion object {
         fun create(): SlotellyApi {
             val client = OkHttpClient.Builder()
