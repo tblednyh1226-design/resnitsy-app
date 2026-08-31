@@ -13,6 +13,7 @@ interface AppointmentDao {
     @Query("update appointments set status=:status,pending=1,updatedAt=:now where id=:id") suspend fun setStatus(id: String, status: String, now: Long = System.currentTimeMillis())
     @Query("update appointments set status='completed_paid',paymentsJson=:payments,pending=1,updatedAt=:now where id=:id") suspend fun setPayment(id: String, payments: String, now: Long = System.currentTimeMillis())
     @Query("update appointments set pending=0 where id=:id") suspend fun clearPending(id: String)
+    @Query("update appointments set clientId=:serverId where clientId=:localId") suspend fun replaceClientId(localId: String, serverId: String)
     @Query("delete from appointments where id=:id") suspend fun delete(id: String)
 }
 
@@ -20,8 +21,10 @@ interface AppointmentDao {
 interface ClientDao {
     @Query("select * from clients order by name") fun observeAll(): Flow<List<ClientEntity>>
     @Query("select * from clients order by name") suspend fun all(): List<ClientEntity>
+    @Query("select * from clients where id=:id limit 1") suspend fun get(id: String): ClientEntity?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(items: List<ClientEntity>)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(item: ClientEntity)
+    @Query("delete from clients where id=:id") suspend fun delete(id: String)
 }
 
 @Dao
@@ -50,6 +53,7 @@ interface CalendarMetaDao {
 interface MutationDao {
     @Query("select * from pending_mutations order by localId") suspend fun all(): List<PendingMutationEntity>
     @Insert suspend fun add(item: PendingMutationEntity): Long
+    @Query("update pending_mutations set payloadJson=:payload where localId=:id") suspend fun updatePayload(id: Long, payload: String)
     @Query("delete from pending_mutations where localId=:id") suspend fun delete(id: Long)
     @Query("update pending_mutations set tries=tries+1 where localId=:id") suspend fun fail(id: Long)
 }
