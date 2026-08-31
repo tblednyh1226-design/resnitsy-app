@@ -5,10 +5,12 @@
         android:name=".SlotellyApp"
         android:allowBackup="true"
         android:label="Slotelly"
+        android:icon="@drawable/ic_slotelly"
+        android:roundIcon="@drawable/ic_slotelly"
         android:theme="@style/Theme.Slotelly">
         <activity android:name=".MainActivity" android:exported="false" />
-        <activity android:name=".NativeMainActivity" android:exported="false" />
-        <activity android:name=".SlotellyActivity" android:exported="true">
+        <activity android:name=".SlotellyActivity" android:exported="false" />
+        <activity android:name=".NativeMainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
