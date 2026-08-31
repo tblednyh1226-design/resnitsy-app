@@ -221,11 +221,7 @@ class SlotellyRepository(
     private suspend fun replaceClientEverywhere(localId: String, server: ClientEntity) {
         db.clients().upsert(server)
         db.appointments().replaceClientId(localId, server.id)
-        for (m in db.mutations().all()) {
-            if (m.action == "create_client") continue
-            if (!m.payloadJson.contains(localId)) continue
-            db.mutations().updatePayload(m.localId, m.payloadJson.replace(localId, server.id))
-        }
+        db.mutations().replaceIdEverywhere(localId, server.id)
         db.clients().delete(localId)
     }
 
@@ -256,6 +252,7 @@ class SlotellyRepository(
                             if (old != null) {
                                 db.appointments().delete(localId)
                                 db.appointments().upsert(old.copy(id = serverId, clientName = clientName.ifBlank { old.clientName }, endsAt = result["ends_at"]?.asString ?: old.endsAt, pending = false))
+                                db.mutations().replaceIdEverywhere(localId, serverId)
                             }
                         } else if (localId != null) db.appointments().clearPending(localId)
                     }
