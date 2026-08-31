@@ -11,32 +11,10 @@ import java.time.*
 
 @Composable
 fun EnhancedFinanceScreen(pin:String,extras:SlotellyExtras,localAppointments:List<AppointmentEntity>){
-    var reportTab by remember{mutableStateOf("Финансы")}
     Column(Modifier.fillMaxSize().padding(horizontal=12.dp)){
-        Text("Отчёты",style=MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.height(6.dp))
-        Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){
-            listOf("Финансы","Записи","Клиенты").forEach{t->
-                FilterChip(selected=reportTab==t,onClick={reportTab=t},label={Text(t)})
-            }
-        }
+        Text("Финансы",style=MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(8.dp))
-        when(reportTab){
-            "Финансы"->FinanceReport(pin,extras,localAppointments)
-            "Записи"->ReportPlaceholder("Отчёт по записям","Здесь будут загрузка по дням, отмены, завершённые записи и свободное время. Логику показателей настроим вместе.")
-            else->ReportPlaceholder("Отчёт по клиентам","Здесь будут новые/повторные клиенты, частота визитов и возвраты. Состав показателей настроим вместе.")
-        }
-    }
-}
-
-@Composable
-private fun ReportPlaceholder(title:String,text:String){
-    Card(Modifier.fillMaxWidth()){
-        Column(Modifier.padding(16.dp)){
-            Text(title,style=MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(8.dp))
-            Text(text)
-        }
+        FinanceReport(pin,extras,localAppointments)
     }
 }
 
@@ -68,7 +46,7 @@ private fun FinanceReport(pin:String,extras:SlotellyExtras,localAppointments:Lis
         if(period=="Период" && (runCatching{LocalDate.parse(fromText)}.isFailure||runCatching{LocalDate.parse(toText)}.isFailure))return@LaunchedEffect
         loading=true;error=""
         val (from,to)=range()
-        runCatching{extras.report(pin,from,to)}.onSuccess{summary=it}.onFailure{error="Серверный отчёт недоступен. Показываю локальные данные."}
+        runCatching{extras.report(pin,from,to)}.onSuccess{summary=it}.onFailure{summary=null;error="Серверный отчёт недоступен. Показываю локальные данные за выбранный период."}
         loading=false
     }
 
@@ -86,12 +64,26 @@ private fun FinanceReport(pin:String,extras:SlotellyExtras,localAppointments:Lis
     if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall)
     Spacer(Modifier.height(12.dp))
 
+    val (from,to)=range()
+    val localRows=localAppointments.filter{a->
+        val t=runCatching{Instant.parse(a.startsAt)}.getOrNull()
+        t!=null && !t.isBefore(from) && t.isBefore(to)
+    }
     val s=summary
-    val localFact=localAppointments.filter{it.status=="completed_paid"}.sumOf{localPaymentTotalEnhanced(it.paymentsJson)}
-    val localPlan=localAppointments.filter{it.status!="cancelled"}.sumOf{localServiceTotalEnhanced(it.servicesJson)}
+    val localFact=localRows.filter{it.status=="completed_paid"}.sumOf{localPaymentTotalEnhanced(it.paymentsJson)}
+    val localPlan=localRows.filter{it.status!="cancelled"}.sumOf{localServiceTotalEnhanced(it.servicesJson)}
+    val localPaidCount=localRows.count{it.status=="completed_paid"}
+    val localUnpaidCount=localRows.count{it.status=="completed_unpaid"}
+    val localCash=localRows.filter{it.status=="completed_paid"}.sumOf{localPaymentPartEnhanced(it.paymentsJson,"cash")}
+    val localCard=localRows.filter{it.status=="completed_paid"}.sumOf{localPaymentPartEnhanced(it.paymentsJson,"card")}
+    val localOther=localRows.filter{it.status=="completed_paid"}.sumOf{localPaymentPartEnhanced(it.paymentsJson,"other")}
+
     val fact=s?.total?:localFact
     val plan=s?.plan?:localPlan
-    val nonCash=(s?.card?:0.0)+(s?.other?:0.0)
+    val cash=s?.cash?:localCash
+    val nonCash=(s?.card?:localCard)+(s?.other?:localOther)
+    val paidCount=s?.paidCount?:localPaidCount
+    val unpaidCount=s?.unpaidCount?:localUnpaidCount
 
     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
         MetricCard("План",plan,"Стоимость записей",Modifier.weight(1f))
@@ -99,7 +91,7 @@ private fun FinanceReport(pin:String,extras:SlotellyExtras,localAppointments:Lis
     }
     Spacer(Modifier.height(8.dp))
     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
-        MetricCard("Наличные",s?.cash?:0.0,"Факт",Modifier.weight(1f))
+        MetricCard("Наличные",cash,"Факт",Modifier.weight(1f))
         MetricCard("Безнал",nonCash,"Карта + другое",Modifier.weight(1f))
     }
     Spacer(Modifier.height(10.dp))
@@ -107,8 +99,8 @@ private fun FinanceReport(pin:String,extras:SlotellyExtras,localAppointments:Lis
         Column(Modifier.padding(14.dp)){
             Text("Итоги",fontWeight=FontWeight.SemiBold)
             Text("Выполнение плана: ${if(plan>0)((fact/plan)*100).toInt() else 0}%")
-            Text("Оплачено записей: ${s?.paidCount?:0}")
-            Text("Завершено без оплаты: ${s?.unpaidCount?:0}")
+            Text("Оплачено записей: $paidCount")
+            Text("Завершено без оплаты: $unpaidCount")
         }
     }
 }
@@ -124,6 +116,16 @@ private fun MetricCard(title:String,value:Double,sub:String,modifier:Modifier){
 
 private fun localPaymentTotalEnhanced(json:String):Double=runCatching{
     com.google.gson.JsonParser.parseString(json).asJsonArray.sumOf{e->val o=e.asJsonObject;o["total"]?.asDouble?:o["total_amount"]?.asDouble?:0.0}
+}.getOrDefault(0.0)
+private fun localPaymentPartEnhanced(json:String,key:String):Double=runCatching{
+    com.google.gson.JsonParser.parseString(json).asJsonArray.sumOf{e->
+        val o=e.asJsonObject
+        when(key){
+            "cash"->o["cash"]?.asDouble?:o["cash_amount"]?.asDouble?:0.0
+            "card"->o["card"]?.asDouble?:o["card_amount"]?.asDouble?:0.0
+            else->o["other"]?.asDouble?:o["other_amount"]?.asDouble?:0.0
+        }
+    }
 }.getOrDefault(0.0)
 private fun localServiceTotalEnhanced(json:String):Double=runCatching{
     com.google.gson.JsonParser.parseString(json).asJsonArray.sumOf{e->val o=e.asJsonObject;o["price"]?.asDouble?:o["actual_price"]?.asDouble?:0.0}
