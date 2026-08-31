@@ -24,7 +24,7 @@ import java.time.*
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private enum class NativeTab { CALENDAR, CLIENTS, WAITLIST, FINANCE }
+private enum class NativeTab { CALENDAR, CLIENTS, WAITLIST, FINANCE, MORE }
 
 class NativeMainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -102,7 +102,6 @@ private fun NativeSlotellyRoot(repo: SlotellyRepository) {
                     if (tab == NativeTab.CALENDAR) TextButton(onClick = { showAvailability = true }) { Text("Окошки") }
                     val fresh = state?.syncedAt?.let { System.currentTimeMillis() - it < 120_000 } == true
                     Text(if (fresh) "✓" else "○", modifier = Modifier.padding(horizontal = 6.dp))
-                    TextButton(onClick = { scope.launch { runCatching { repo.sync(pin) } } }) { Text("Обновить") }
                 }
             )
         },
@@ -112,6 +111,7 @@ private fun NativeSlotellyRoot(repo: SlotellyRepository) {
                 NavigationBarItem(selected = tab == NativeTab.CLIENTS, onClick = { tab = NativeTab.CLIENTS }, icon = { Text("◉") }, label = { Text("Клиенты") })
                 NavigationBarItem(selected = tab == NativeTab.WAITLIST, onClick = { tab = NativeTab.WAITLIST }, icon = { Text("⌁") }, label = { Text("Ловец") })
                 NavigationBarItem(selected = tab == NativeTab.FINANCE, onClick = { tab = NativeTab.FINANCE }, icon = { Text("₽") }, label = { Text("Финансы") })
+                NavigationBarItem(selected = tab == NativeTab.MORE, onClick = { tab = NativeTab.MORE }, icon = { Text("⋯") }, label = { Text("Ещё") })
             }
         },
         floatingActionButton = {
@@ -129,6 +129,10 @@ private fun NativeSlotellyRoot(repo: SlotellyRepository) {
                 )
                 NativeTab.WAITLIST -> WaitlistNativeScreen(pin, extras)
                 NativeTab.FINANCE -> ServerFinanceScreen(pin, extras, appts)
+                NativeTab.MORE -> MoreScreen(
+                    syncedAt = state?.syncedAt,
+                    onSync = { scope.launch { runCatching { repo.sync(pin) } } }
+                )
             }
         }
     }
