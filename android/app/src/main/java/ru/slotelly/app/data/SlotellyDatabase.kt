@@ -7,9 +7,11 @@ import kotlinx.coroutines.flow.Flow
 interface AppointmentDao {
     @Query("select * from appointments where status != 'cancelled' order by startsAt") fun observeActive(): Flow<List<AppointmentEntity>>
     @Query("select * from appointments order by startsAt") suspend fun all(): List<AppointmentEntity>
+    @Query("select * from appointments where id=:id limit 1") suspend fun get(id: String): AppointmentEntity?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(items: List<AppointmentEntity>)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(item: AppointmentEntity)
     @Query("update appointments set status=:status,pending=1,updatedAt=:now where id=:id") suspend fun setStatus(id: String, status: String, now: Long = System.currentTimeMillis())
+    @Query("update appointments set status='completed_paid',paymentsJson=:payments,pending=1,updatedAt=:now where id=:id") suspend fun setPayment(id: String, payments: String, now: Long = System.currentTimeMillis())
     @Query("update appointments set pending=0 where id=:id") suspend fun clearPending(id: String)
     @Query("delete from appointments where id=:id") suspend fun delete(id: String)
 }
