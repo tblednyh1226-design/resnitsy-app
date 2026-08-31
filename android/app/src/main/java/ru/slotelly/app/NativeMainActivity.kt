@@ -146,14 +146,14 @@ private fun NativeSlotellyRoot(repo: SlotellyRepository) {
     }
 
     if (showEditor) {
-        FastAppointmentEditor(
+        MultiServiceAppointmentEditor(
             existing = editAppointment,
             clients = clients,
             services = services,
             onClose = { showEditor = false; editAppointment = null },
-            onSave = { client, service, startsAt, price, duration, comment ->
+            onSave = { client, selectedServices, startsAt, comment ->
                 scope.launch {
-                    repo.saveAppointment(editAppointment?.id, client, service, startsAt, price, duration, comment)
+                    repo.saveAppointment(editAppointment?.id, client, selectedServices, startsAt, comment)
                     launch { runCatching { repo.flush(pin) } }
                 }
                 showEditor = false
