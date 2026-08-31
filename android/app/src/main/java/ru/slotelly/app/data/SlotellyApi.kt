@@ -16,6 +16,34 @@ interface SlotellyApi {
     @POST("rest/v1/rpc/slotelly_mobile_waitlist")
     suspend fun waitlist(@Body body: Map<String, String>): JsonObject
 
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/rpc/slotelly_mobile_waitlist_all")
+    suspend fun waitlistAll(@Body body: Map<String, String>): JsonObject
+
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/rpc/slotelly_mobile_waitlist_detail")
+    suspend fun waitlistDetail(@Body body: Map<String, Any?>): JsonObject
+
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/rpc/slotelly_mobile_waitlist_update")
+    suspend fun waitlistUpdate(@Body body: Map<String, Any?>): JsonObject
+
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/rpc/slotelly_mobile_client_extra")
+    suspend fun clientExtra(@Body body: Map<String, Any?>): JsonObject
+
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/rpc/slotelly_mobile_update_client")
+    suspend fun updateClient(@Body body: Map<String, Any?>): JsonObject
+
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/rpc/master_telegram_link_status")
+    suspend fun telegramLinkStatus(@Body body: Map<String, Any?>): JsonObject
+
+    @Headers("Content-Type: application/json")
+    @POST("rest/v1/rpc/master_create_telegram_link")
+    suspend fun createTelegramLink(@Body body: Map<String, Any?>): JsonObject
+
     companion object {
         fun create(): SlotellyApi {
             val client = OkHttpClient.Builder()
