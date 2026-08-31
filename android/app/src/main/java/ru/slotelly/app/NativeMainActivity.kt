@@ -52,11 +52,13 @@ private fun NativeSlotellyRoot(repo: SlotellyRepository) {
     var editAppointment by remember { mutableStateOf<AppointmentEntity?>(null) }
     var showEditor by remember { mutableStateOf(false) }
     var showNewClient by remember { mutableStateOf(false) }
+    var showAvailability by remember { mutableStateOf(false) }
     var paymentAppointment by remember { mutableStateOf<AppointmentEntity?>(null) }
 
     val appts by repo.appointments().collectAsStateWithLifecycle(emptyList())
     val clients by repo.clients().collectAsStateWithLifecycle(emptyList())
     val services by repo.services().collectAsStateWithLifecycle(emptyList())
+    val overrides by repo.overrides().collectAsStateWithLifecycle(emptyList())
     val state by repo.appState().collectAsStateWithLifecycle(null)
 
     LaunchedEffect(Unit) {
@@ -97,8 +99,9 @@ private fun NativeSlotellyRoot(repo: SlotellyRepository) {
             TopAppBar(
                 title = { Text("Slotelly") },
                 actions = {
+                    if (tab == NativeTab.CALENDAR) TextButton(onClick = { showAvailability = true }) { Text("Окошки") }
                     val fresh = state?.syncedAt?.let { System.currentTimeMillis() - it < 120_000 } == true
-                    Text(if (fresh) "✓" else "○", modifier = Modifier.padding(horizontal = 8.dp))
+                    Text(if (fresh) "✓" else "○", modifier = Modifier.padding(horizontal = 6.dp))
                     TextButton(onClick = { scope.launch { runCatching { repo.sync(pin) } } }) { Text("Обновить") }
                 }
             )
@@ -156,6 +159,15 @@ private fun NativeSlotellyRoot(repo: SlotellyRepository) {
                 showEditor = false
                 editAppointment = null
             }
+        )
+    }
+
+    if (showAvailability) {
+        AvailabilityOverlay(
+            overrides = overrides,
+            repo = repo,
+            pin = pin,
+            onClose = { showAvailability = false }
         )
     }
 
