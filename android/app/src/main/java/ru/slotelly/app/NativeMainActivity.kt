@@ -146,7 +146,7 @@ private fun NativeSlotellyRoot(repo: SlotellyRepository) {
     }
 
     if (showEditor) {
-        AppointmentEditor(
+        FastAppointmentEditor(
             existing = editAppointment,
             clients = clients,
             services = services,
