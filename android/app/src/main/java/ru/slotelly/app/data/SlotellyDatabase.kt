@@ -54,6 +54,7 @@ interface MutationDao {
     @Query("select * from pending_mutations order by localId") suspend fun all(): List<PendingMutationEntity>
     @Insert suspend fun add(item: PendingMutationEntity): Long
     @Query("update pending_mutations set payloadJson=:payload where localId=:id") suspend fun updatePayload(id: Long, payload: String)
+    @Query("update pending_mutations set payloadJson=replace(payloadJson,:oldId,:newId) where payloadJson like '%' || :oldId || '%'") suspend fun replaceIdEverywhere(oldId: String, newId: String)
     @Query("delete from pending_mutations where localId=:id") suspend fun delete(id: Long)
     @Query("update pending_mutations set tries=tries+1 where localId=:id") suspend fun fail(id: Long)
 }
