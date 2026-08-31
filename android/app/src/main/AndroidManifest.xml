@@ -8,8 +8,6 @@
         android:icon="@drawable/ic_slotelly"
         android:roundIcon="@drawable/ic_slotelly"
         android:theme="@style/Theme.Slotelly">
-        <activity android:name=".MainActivity" android:exported="false" />
-        <activity android:name=".SlotellyActivity" android:exported="false" />
         <activity android:name=".NativeMainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
