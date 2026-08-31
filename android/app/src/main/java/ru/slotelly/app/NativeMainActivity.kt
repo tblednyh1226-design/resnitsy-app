@@ -121,7 +121,12 @@ private fun NativeSlotellyRoot(repo: SlotellyRepository) {
         Box(Modifier.padding(pad).fillMaxSize()) {
             when (tab) {
                 NativeTab.CALENDAR -> CalendarScreen(appts, onOpen = { selectedAppointment = it })
-                NativeTab.CLIENTS -> ClientsScreen(clients, onNew = { showNewClient = true })
+                NativeTab.CLIENTS -> NativeClientsScreen(
+                    clients = clients,
+                    appointments = appts,
+                    onNew = { showNewClient = true },
+                    onOpenAppointment = { selectedAppointment = it }
+                )
                 NativeTab.WAITLIST -> WaitlistNativeScreen(pin, extras)
                 NativeTab.FINANCE -> ServerFinanceScreen(pin, extras, appts)
             }
