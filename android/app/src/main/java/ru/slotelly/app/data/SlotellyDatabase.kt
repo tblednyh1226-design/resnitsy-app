@@ -14,6 +14,7 @@ interface AppointmentDao {
     @Query("update appointments set status='completed_paid',paymentsJson=:payments,pending=1,updatedAt=:now where id=:id") suspend fun setPayment(id: String, payments: String, now: Long = System.currentTimeMillis())
     @Query("update appointments set pending=0 where id=:id") suspend fun clearPending(id: String)
     @Query("update appointments set clientId=:serverId where clientId=:localId") suspend fun replaceClientId(localId: String, serverId: String)
+    @Query("delete from appointments where pending=0 and startsAt>=:from and startsAt<:to") suspend fun clearSyncedRange(from: String, to: String)
     @Query("delete from appointments where id=:id") suspend fun delete(id: String)
 }
 
