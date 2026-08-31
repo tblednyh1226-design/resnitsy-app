@@ -29,6 +29,7 @@ class SlotellyRepository(
         flush(pin)
         val pendingLocal = db.appointments().all().filter { it.pending }.associateBy { it.id }
         val pendingOverrides = db.calendarMeta().allOverrides().filter { it.pending }.associateBy { it.slotStart }
+        val localPendingClients = db.clients().all().filter { it.id.startsWith("local-client-") }
         val now = ZonedDateTime.now(ZoneId.of("Europe/Moscow"))
         val from = now.minusDays(21).toInstant().toString()
         val to = now.plusDays(45).toInstant().toString()
@@ -58,7 +59,7 @@ class SlotellyRepository(
                 lastServicesJson = gson.toJson(o["last_services"] ?: JsonArray())
             )
         } ?: emptyList()
-        db.clients().upsert(clientRows)
+        db.clients().upsert(clientRows + localPendingClients)
 
         val cal = j.getAsJsonObject("calendar")
         val serverRows = cal?.getAsJsonArray("appointments")?.map { x ->
@@ -191,16 +192,41 @@ class SlotellyRepository(
         db.mutations().add(PendingMutationEntity(action = "availability", payloadJson = gson.toJson(mapOf("slot" to slotStart, "value" to available))))
     }
 
-    suspend fun createClient(pin: String, name: String, phone: String, messenger: String): ClientEntity {
-        val j = api.call(ApiEnvelope(pin, "create_client", mapOf("name" to name, "phone" to phone, "messenger" to messenger)))
+    suspend fun createClientLocal(name: String, phone: String, messenger: String): ClientEntity {
         val c = ClientEntity(
-            id = j["id"].asString,
-            name = j["display_name"]?.asString ?: j["name"]?.asString ?: name,
-            phone = j["phone"]?.asString ?: phone,
-            messenger = j["messenger"]?.takeUnless { it.isJsonNull }?.asString ?: messenger
+            id = "local-client-${UUID.randomUUID()}",
+            name = name.trim(),
+            phone = phone.trim(),
+            messenger = messenger
         )
         db.clients().upsert(c)
+        db.mutations().add(PendingMutationEntity(
+            action = "create_client",
+            payloadJson = gson.toJson(mapOf(
+                "name" to c.name,
+                "phone" to c.phone,
+                "messenger" to c.messenger,
+                "_local_id" to c.id
+            ))
+        ))
         return c
+    }
+
+    suspend fun createClient(pin: String, name: String, phone: String, messenger: String): ClientEntity {
+        val local = createClientLocal(name, phone, messenger)
+        flush(pin)
+        return db.clients().all().firstOrNull { it.phone.filter(Char::isDigit).takeLast(10) == phone.filter(Char::isDigit).takeLast(10) } ?: local
+    }
+
+    private suspend fun replaceClientEverywhere(localId: String, server: ClientEntity) {
+        db.clients().upsert(server)
+        db.appointments().replaceClientId(localId, server.id)
+        for (m in db.mutations().all()) {
+            if (m.action == "create_client") continue
+            if (!m.payloadJson.contains(localId)) continue
+            db.mutations().updatePayload(m.localId, m.payloadJson.replace(localId, server.id))
+        }
+        db.clients().delete(localId)
     }
 
     suspend fun flush(pin: String) {
@@ -211,19 +237,30 @@ class SlotellyRepository(
                 val localId = raw.remove("_local_id")?.toString()
                 val clientName = raw.remove("_client_name")?.toString().orEmpty()
                 val result = api.call(ApiEnvelope(pin, m.action, raw))
-                if (m.action == "save_appointment") {
-                    val serverId = result["id"]?.asString
-                    if (localId != null && serverId != null && localId.startsWith("local-")) {
-                        val old = db.appointments().get(localId)
-                        if (old != null) {
-                            db.appointments().delete(localId)
-                            db.appointments().upsert(old.copy(id = serverId, clientName = clientName.ifBlank { old.clientName }, endsAt = result["ends_at"]?.asString ?: old.endsAt, pending = false))
+                when (m.action) {
+                    "create_client" -> {
+                        if (localId != null) {
+                            val server = ClientEntity(
+                                id = result["id"].asString,
+                                name = result["display_name"]?.asString ?: result["name"]?.asString ?: raw["name"].toString(),
+                                phone = result["phone"]?.asString ?: raw["phone"].toString(),
+                                messenger = result["messenger"]?.takeUnless { it.isJsonNull }?.asString ?: raw["messenger"].toString()
+                            )
+                            replaceClientEverywhere(localId, server)
                         }
-                    } else if (localId != null) db.appointments().clearPending(localId)
-                } else if (m.action == "availability") {
-                    raw["slot"]?.toString()?.let { db.calendarMeta().clearOverridePending(it) }
-                } else {
-                    raw["id"]?.toString()?.let { db.appointments().clearPending(it) }
+                    }
+                    "save_appointment" -> {
+                        val serverId = result["id"]?.asString
+                        if (localId != null && serverId != null && localId.startsWith("local-") && !localId.startsWith("local-client-")) {
+                            val old = db.appointments().get(localId)
+                            if (old != null) {
+                                db.appointments().delete(localId)
+                                db.appointments().upsert(old.copy(id = serverId, clientName = clientName.ifBlank { old.clientName }, endsAt = result["ends_at"]?.asString ?: old.endsAt, pending = false))
+                            }
+                        } else if (localId != null) db.appointments().clearPending(localId)
+                    }
+                    "availability" -> raw["slot"]?.toString()?.let { db.calendarMeta().clearOverridePending(it) }
+                    else -> raw["id"]?.toString()?.let { db.appointments().clearPending(it) }
                 }
                 db.mutations().delete(m.localId)
             } catch (_: Exception) {
