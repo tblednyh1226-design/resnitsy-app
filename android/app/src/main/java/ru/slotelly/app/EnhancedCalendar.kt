@@ -83,11 +83,15 @@ private fun HourWeekGrid(appointments: List<AppointmentEntity>, focus: LocalDate
                         val rows = appointments.filter { a -> ecDate(a.startsAt) == d && ecTime(a.startsAt).hour == hour }
                         Box(Modifier.weight(1f).fillMaxHeight().padding(0.5.dp).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .25f))) {
                             rows.take(2).forEachIndexed { index, a ->
-                                Surface(tonalElevation = if (a.pending) 3.dp else 1.dp, shape = RoundedCornerShape(4.dp),
-                                    modifier = Modifier.fillMaxWidth().padding(top = (index * 18).dp, start = 1.dp, end = 1.dp).clickable { onOpen(a) }) {
-                                    Column(Modifier.padding(horizontal = 2.dp, vertical = 1.dp)) {
+                                Surface(
+                                    tonalElevation = if (a.pending) 3.dp else 1.dp,
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    modifier = Modifier.fillMaxWidth().padding(top = (index * 18).dp, start = 1.dp, end = 1.dp).clickable { onOpen(a) }
+                                ) {
+                                    Column(Modifier.padding(horizontal = 3.dp, vertical = 2.dp)) {
                                         Text(ecTime(a.startsAt).format(DateTimeFormatter.ofPattern("HH:mm")), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                                        Text(a.clientName, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(a.clientName, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                 }
                             }
@@ -120,8 +124,12 @@ private fun HourDayGrid(appointments: List<AppointmentEntity>, date: LocalDate, 
             val duration = Duration.between(start, end).toMinutes().coerceAtLeast(30)
             val y = hourHeight * (startMinutes / 60f)
             val h = (hourHeight * (duration / 60f)).coerceAtLeast(42.dp)
-            Surface(tonalElevation = if (a.pending) 5.dp else 2.dp, shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.padding(start = 54.dp, end = 4.dp).offset(y = y).height(h).fillMaxWidth().clickable { onOpen(a) }) {
+            Surface(
+                tonalElevation = if (a.pending) 5.dp else 2.dp,
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.padding(start = 54.dp, end = 4.dp).offset(y = y).height(h).fillMaxWidth().clickable { onOpen(a) }
+            ) {
                 Column(Modifier.padding(6.dp)) {
                     Text("${start.format(DateTimeFormatter.ofPattern("HH:mm"))}–${end.format(DateTimeFormatter.ofPattern("HH:mm"))} · ${a.clientName}", fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     val services = ecServices(a); if (services.isNotBlank()) Text(services, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
