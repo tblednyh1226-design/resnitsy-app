@@ -12,8 +12,8 @@ android {
         applicationId = "ru.slotelly.app.beta"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.5.2-beta"
+        versionCode = 8
+        versionName = "0.5.3-beta"
         buildConfigField("String", "SUPABASE_URL", "\"https://acukaqoguzkrphauovhk.supabase.co\"")
         buildConfigField("String", "SUPABASE_KEY", "\"sb_publishable_2aKxmTx4WtnZglspnun9gA_goe71amD\"")
     }
