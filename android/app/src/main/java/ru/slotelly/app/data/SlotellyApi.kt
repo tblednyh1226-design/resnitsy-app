@@ -6,7 +6,6 @@ import retrofit2.http.Body
 import retrofit2.http.Headers
 import retrofit2.http.POST
 import ru.slotelly.app.BuildConfig
-import kotlin.jvm.JvmSuppressWildcards
 
 interface SlotellyApi {
     @Headers("Content-Type: application/json")
@@ -23,43 +22,43 @@ interface SlotellyApi {
 
     @Headers("Content-Type: application/json")
     @POST("rest/v1/rpc/slotelly_mobile_waitlist_detail")
-    suspend fun waitlistDetail(@Body body: Map<String, @JvmSuppressWildcards Any>): JsonObject
+    suspend fun waitlistDetail(@Body body: JsonObject): JsonObject
 
     @Headers("Content-Type: application/json")
     @POST("rest/v1/rpc/slotelly_mobile_waitlist_update")
-    suspend fun waitlistUpdate(@Body body: Map<String, @JvmSuppressWildcards Any>): JsonObject
+    suspend fun waitlistUpdate(@Body body: JsonObject): JsonObject
 
     @Headers("Content-Type: application/json")
     @POST("rest/v1/rpc/slotelly_mobile_client_extra")
-    suspend fun clientExtra(@Body body: Map<String, @JvmSuppressWildcards Any>): JsonObject
+    suspend fun clientExtra(@Body body: JsonObject): JsonObject
 
     @Headers("Content-Type: application/json")
     @POST("rest/v1/rpc/slotelly_mobile_update_client")
-    suspend fun updateClient(@Body body: Map<String, @JvmSuppressWildcards Any>): JsonObject
+    suspend fun updateClient(@Body body: JsonObject): JsonObject
 
     @Headers("Content-Type: application/json")
     @POST("rest/v1/rpc/master_telegram_link_status")
-    suspend fun telegramLinkStatus(@Body body: Map<String, @JvmSuppressWildcards Any>): JsonObject
+    suspend fun telegramLinkStatus(@Body body: JsonObject): JsonObject
 
     @Headers("Content-Type: application/json")
     @POST("rest/v1/rpc/master_create_telegram_link")
-    suspend fun createTelegramLink(@Body body: Map<String, @JvmSuppressWildcards Any>): JsonObject
+    suspend fun createTelegramLink(@Body body: JsonObject): JsonObject
 
     @Headers("Content-Type: application/json")
     @POST("rest/v1/rpc/slotelly_mobile_settings_patch")
-    suspend fun settingsPatch(@Body body: Map<String, @JvmSuppressWildcards Any>): JsonObject
+    suspend fun settingsPatch(@Body body: JsonObject): JsonObject
 
     @Headers("Content-Type: application/json")
     @POST("rest/v1/rpc/slotelly_mobile_set_online_booking")
-    suspend fun setOnlineBooking(@Body body: Map<String, @JvmSuppressWildcards Any>): JsonObject
+    suspend fun setOnlineBooking(@Body body: JsonObject): JsonObject
 
     @Headers("Content-Type: application/json")
     @POST("functions/v1/resnitsy-notifications")
-    suspend fun notifications(@Body body: Map<String, @JvmSuppressWildcards Any>): JsonObject
+    suspend fun notifications(@Body body: JsonObject): JsonObject
 
     @Headers("Content-Type: application/json")
     @POST("functions/v1/resnitsy-dayoff")
-    suspend fun dayoff(@Body body: Map<String, @JvmSuppressWildcards Any>): JsonObject
+    suspend fun dayoff(@Body body: JsonObject): JsonObject
 
     companion object {
         fun create(): SlotellyApi {
