@@ -47,7 +47,6 @@ private fun ecDate(iso: String): LocalDate = Instant.parse(iso).atZone(EC_ZONE).
 private fun ecTime(iso: String): LocalTime = Instant.parse(iso).atZone(EC_ZONE).toLocalTime()
 private fun ecMinutes(iso: String): Int { val t=ecTime(iso); return t.hour*60+t.minute }
 private fun ecDuration(a: AppointmentEntity): Long = Duration.between(Instant.parse(a.startsAt), Instant.parse(a.endsAt)).toMinutes().coerceAtLeast(30)
-private fun jsDow(d: LocalDate): Int = d.dayOfWeek.value % 7
 private fun ecServices(a: AppointmentEntity): String = runCatching {
     JsonParser.parseString(a.servicesJson).asJsonArray.mapNotNull { e ->
         val o=e.asJsonObject; o["name"]?.takeUnless { it.isJsonNull }?.asString ?: o["service_name_snapshot"]?.takeUnless { it.isJsonNull }?.asString
@@ -78,14 +77,15 @@ private fun parseSchedule(settingsJson: String): WorkSchedule = runCatching {
 }.getOrElse { WorkSchedule((0..6).toSet(),emptyList(),emptySet()) }
 
 private fun baseTimes(date: LocalDate, schedule: WorkSchedule): List<String> {
-    val dow=jsDow(date)
+    val dow=date.dayOfWeek.value % 7
     val group=schedule.groups.firstOrNull { dow in it.days }
     if(group!=null && group.times.isNotEmpty()) return group.times.distinct().sorted()
     return if(dow in schedule.weekdays) listOf("10:00","13:00","16:00","19:00") else emptyList()
 }
 private fun blockDate(b: CalendarBlockEntity): LocalDate = ecDate(b.startsAt)
 private fun isDayOff(date: LocalDate, schedule: WorkSchedule, blocks: List<CalendarBlockEntity>): Boolean {
-    val weekly=jsDow(date) !in schedule.weekdays && date.toString() !in schedule.workdayOverrides
+    val dow=date.dayOfWeek.value % 7
+    val weekly=dow !in schedule.weekdays && date.toString() !in schedule.workdayOverrides
     val manual=blocks.any { it.label.equals("Выходной",true) && blockDate(it)==date }
     return weekly || manual
 }
@@ -137,14 +137,63 @@ private fun WeekTimeline(
     appointments:List<AppointmentEntity>, blocks:List<CalendarBlockEntity>, overrides:List<AvailabilityOverrideEntity>, schedule:WorkSchedule,
     focus:LocalDate, modifier:Modifier, onOpen:(AppointmentEntity)->Unit, onFreeDay:(LocalDate)->Unit
 ){
-    val monday=focus.minusDays((focus.dayOfWeek.value-1).toLong()); val today=LocalDate.now(EC_ZONE); val labelW=30.dp
+    val monday=focus.minusDays((focus.dayOfWeek.value-1).toLong())
+    val today=LocalDate.now(EC_ZONE)
+    val labelW=30.dp
     Column(modifier.fillMaxWidth()){
-        Row(Modifier.fillMaxWidth().height(38.dp)){Spacer(Modifier.width(labelW));(0..6).forEach{i->val d=monday.plusDays(i.toLong());val now=d==today;Column(Modifier.weight(1f).fillMaxHeight().background(if(now)CAL_TODAY_BG else Color.Transparent,RoundedCornerShape(10.dp)),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){Text(d.format(DateTimeFormatter.ofPattern("EE",EC_RU)).replace(".",""),style=MaterialTheme.typography.labelSmall,color=if(now)CAL_TODAY else MaterialTheme.colorScheme.onSurfaceVariant);Text(d.dayOfMonth.toString(),style=MaterialTheme.typography.labelMedium,fontWeight=FontWeight.Bold,color=if(now)CAL_TODAY else MaterialTheme.colorScheme.onSurface)}}}
+        Row(Modifier.fillMaxWidth().height(38.dp)){
+            Spacer(Modifier.width(labelW))
+            (0..6).forEach{i->
+                val d=monday.plusDays(i.toLong());val now=d==today
+                Column(Modifier.weight(1f).fillMaxHeight().background(if(now)CAL_TODAY_BG else Color.Transparent,RoundedCornerShape(10.dp)),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){
+                    Text(d.format(DateTimeFormatter.ofPattern("EE",EC_RU)).replace(".",""),style=MaterialTheme.typography.labelSmall,color=if(now)CAL_TODAY else MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(d.dayOfMonth.toString(),style=MaterialTheme.typography.labelMedium,fontWeight=FontWeight.Bold,color=if(now)CAL_TODAY else MaterialTheme.colorScheme.onSurface)
+                }
+            }
+        }
         BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)){
-            val gridH=maxHeight; val contentW=maxWidth-labelW; val dayW=contentW/7f
-            Column(Modifier.fillMaxSize()){(START_HOUR until END_HOUR).forEach{h->Row(Modifier.weight(1f).fillMaxWidth()){Text(h.toString(),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.width(labelW).padding(top=2.dp));(0..6).forEach{i->val d=monday.plusDays(i.toLong());val now=d==today;val off=isDayOff(d,schedule,blocks);Box(Modifier.weight(1f).fillMaxHeight().padding(.5.dp).background(if(off)Color(0xFFF0ECEE) else if(now)CAL_TODAY_BG.copy(alpha=.45f) else if(d.dayOfWeek==DayOfWeek.SATURDAY||d.dayOfWeek==DayOfWeek.SUNDAY)CAL_WEEKEND else CAL_GRID,RoundedCornerShape(4.dp)))}}}
-            (0..6).forEach{i->val d=monday.plusDays(i.toLong());freeTimes(d,schedule,appointments,blocks,overrides).forEach{t->val p=LocalTime.parse(t);val m=p.hour*60+p.minute;if(m in START_HOUR*60 until END_HOUR*60){val y=gridH*((m-START_HOUR*60)/TOTAL_MINUTES.toFloat());Surface(color=CAL_AVAILABLE,border=BorderStroke(.7.dp,CAL_AVAILABLE_BORDER.copy(alpha=.7f)),shape=RoundedCornerShape(5.dp),modifier=Modifier.offset(x=labelW+dayW*i,y=y).width(dayW).height(22.dp).padding(horizontal=1.dp).clickable{onFreeDay(d)}){Box(contentAlignment=Alignment.Center){Text(t,style=MaterialTheme.typography.labelSmall,color=Color(0xFF3E6C52),fontWeight=FontWeight.SemiBold)}}}}}
-            appointments.filter{it.status!="cancelled"&&it.status!="canceled"}.forEach{a->val d=ecDate(a.startsAt);val i=ChronoUnit.DAYS.between(monday,d).toInt();if(i in 0..6){val sm=(ecMinutes(a.startsAt)-START_HOUR*60).coerceAtLeast(0);val dur=ecDuration(a).toInt();if(sm<TOTAL_MINUTES){val y=gridH*(sm/TOTAL_MINUTES.toFloat());val hh=(gridH*(dur/TOTAL_MINUTES.toFloat())).coerceAtLeast(30.dp);Surface(color=appointmentColor(a),shape=RoundedCornerShape(7.dp),tonalElevation=1.dp,modifier=Modifier.offset(x=labelW+dayW*i,y=y).width(dayW).height(hh).padding(horizontal=1.dp).clickable{onOpen(a)}){Column(Modifier.padding(horizontal=4.dp,vertical=3.dp)){Text(ecTime(a.startsAt).format(DateTimeFormatter.ofPattern("HH:mm")),style=MaterialTheme.typography.labelSmall,fontWeight=FontWeight.Bold,maxLines=1);Text(a.clientName,style=MaterialTheme.typography.labelSmall,fontWeight=FontWeight.SemiBold,maxLines=1,overflow=TextOverflow.Ellipsis);if(hh>44.dp){val s=ecServices(a);if(s.isNotBlank())Text(s,style=MaterialTheme.typography.labelSmall,maxLines=2,overflow=TextOverflow.Ellipsis)}}}}}}
+            val gridH=maxHeight
+            val contentW=maxWidth-labelW
+            val dayW=contentW/7f
+            Column(Modifier.fillMaxSize()){
+                (START_HOUR until END_HOUR).forEach{h->
+                    Row(Modifier.weight(1f).fillMaxWidth()){
+                        Text(h.toString(),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.width(labelW).padding(top=2.dp))
+                        (0..6).forEach{i->
+                            val d=monday.plusDays(i.toLong());val now=d==today;val off=isDayOff(d,schedule,blocks)
+                            Box(Modifier.weight(1f).fillMaxHeight().padding(.5.dp).background(if(off)Color(0xFFF0ECEE) else if(now)CAL_TODAY_BG.copy(alpha=.45f) else if(d.dayOfWeek==DayOfWeek.SATURDAY||d.dayOfWeek==DayOfWeek.SUNDAY)CAL_WEEKEND else CAL_GRID,RoundedCornerShape(4.dp)))
+                        }
+                    }
+                }
+            }
+            (0..6).forEach{i->
+                val d=monday.plusDays(i.toLong())
+                freeTimes(d,schedule,appointments,blocks,overrides).forEach{t->
+                    val p=LocalTime.parse(t);val m=p.hour*60+p.minute
+                    if(m in START_HOUR*60 until END_HOUR*60){
+                        val y=gridH*((m-START_HOUR*60)/TOTAL_MINUTES.toFloat())
+                        Surface(color=CAL_AVAILABLE,border=BorderStroke(.7.dp,CAL_AVAILABLE_BORDER.copy(alpha=.7f)),shape=RoundedCornerShape(5.dp),modifier=Modifier.offset(x=labelW+dayW*i,y=y).width(dayW).height(22.dp).padding(horizontal=1.dp).clickable{onFreeDay(d)}){
+                            Box(contentAlignment=Alignment.Center){Text(t,style=MaterialTheme.typography.labelSmall,color=Color(0xFF3E6C52),fontWeight=FontWeight.SemiBold)}
+                        }
+                    }
+                }
+            }
+            appointments.filter{it.status!="cancelled"&&it.status!="canceled"}.forEach{a->
+                val d=ecDate(a.startsAt);val i=ChronoUnit.DAYS.between(monday,d).toInt()
+                if(i in 0..6){
+                    val sm=(ecMinutes(a.startsAt)-START_HOUR*60).coerceAtLeast(0);val dur=ecDuration(a).toInt()
+                    if(sm<TOTAL_MINUTES){
+                        val y=gridH*(sm/TOTAL_MINUTES.toFloat());val hh=(gridH*(dur/TOTAL_MINUTES.toFloat())).coerceAtLeast(30.dp)
+                        Surface(color=appointmentColor(a),shape=RoundedCornerShape(7.dp),tonalElevation=1.dp,modifier=Modifier.offset(x=labelW+dayW*i,y=y).width(dayW).height(hh).padding(horizontal=1.dp).clickable{onOpen(a)}){
+                            Column(Modifier.padding(horizontal=4.dp,vertical=3.dp)){
+                                Text(ecTime(a.startsAt).format(DateTimeFormatter.ofPattern("HH:mm")),style=MaterialTheme.typography.labelSmall,fontWeight=FontWeight.Bold,maxLines=1)
+                                Text(a.clientName,style=MaterialTheme.typography.labelSmall,fontWeight=FontWeight.SemiBold,maxLines=1,overflow=TextOverflow.Ellipsis)
+                                if(hh>44.dp){val s=ecServices(a);if(s.isNotBlank())Text(s,style=MaterialTheme.typography.labelSmall,maxLines=2,overflow=TextOverflow.Ellipsis)}
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -154,12 +203,49 @@ private fun DayTimeline(
     appointments:List<AppointmentEntity>,blocks:List<CalendarBlockEntity>,overrides:List<AvailabilityOverrideEntity>,schedule:WorkSchedule,
     date:LocalDate,modifier:Modifier,onOpen:(AppointmentEntity)->Unit
 ){
-    val labelW=44.dp; val dayAppts=appointments.filter{ecDate(it.startsAt)==date&&it.status!="cancelled"&&it.status!="canceled"}; val frees=freeTimes(date,schedule,appointments,blocks,overrides); val dayBlocks=blocks.filter{blockDate(it)==date&&it.source=="manual_break"}
+    val labelW=44.dp
+    val dayAppts=appointments.filter{ecDate(it.startsAt)==date&&it.status!="cancelled"&&it.status!="canceled"}
+    val frees=freeTimes(date,schedule,appointments,blocks,overrides)
+    val dayBlocks=blocks.filter{blockDate(it)==date&&it.source=="manual_break"}
     BoxWithConstraints(modifier.fillMaxWidth()){
         val gridH=maxHeight
-        Column(Modifier.fillMaxSize()){(START_HOUR until END_HOUR).forEach{h->Row(Modifier.weight(1f).fillMaxWidth()){Text(String.format("%02d",h),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.width(labelW).padding(top=2.dp));Box(Modifier.weight(1f).fillMaxHeight().padding(.5.dp).background(CAL_GRID,RoundedCornerShape(5.dp)))}}}
-        frees.forEach{t->val p=LocalTime.parse(t);val m=p.hour*60+p.minute;if(m in START_HOUR*60 until END_HOUR*60){val y=gridH*((m-START_HOUR*60)/TOTAL_MINUTES.toFloat());Surface(color=CAL_AVAILABLE,border=BorderStroke(1.dp,CAL_AVAILABLE_BORDER),shape=RoundedCornerShape(8.dp),modifier=Modifier.offset(x=labelW,y=y).fillMaxWidth().height(30.dp).padding(end=5.dp)){Row(Modifier.fillMaxSize().padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically){Text(t,fontWeight=FontWeight.Bold,color=Color(0xFF3E6C52));Spacer(Modifier.width(8.dp));Text("Доступно для записи",style=MaterialTheme.typography.labelSmall,color=Color(0xFF3E6C52))}}}}
-        dayBlocks.forEach{b->val sm=ecMinutes(b.startsAt)-START_HOUR*60;val dur=(ecMinutes(b.endsAt)-ecMinutes(b.startsAt)).coerceAtLeast(15);if(sm in 0 until TOTAL_MINUTES){val y=gridH*(sm/TOTAL_MINUTES.toFloat());val hh=(gridH*(dur/TOTAL_MINUTES.toFloat())).coerceAtLeast(28.dp);Surface(color=CAL_BREAK,shape=RoundedCornerShape(8.dp),modifier=Modifier.offset(x=labelW,y=y).fillMaxWidth().height(hh).padding(end=5.dp)){Column(Modifier.padding(horizontal=8.dp,vertical=4.dp)){Text("${ecTime(b.startsAt).format(DateTimeFormatter.ofPattern("HH:mm"))}–${ecTime(b.endsAt).format(DateTimeFormatter.ofPattern("HH:mm"))} · Перерыв",fontWeight=FontWeight.SemiBold);if(b.label.isNotBlank())Text(b.label,style=MaterialTheme.typography.labelSmall)}}}}
-        dayAppts.forEach{a->val sm=ecMinutes(a.startsAt)-START_HOUR*60;val dur=ecDuration(a).toInt();if(sm<TOTAL_MINUTES){val y=gridH*(sm.coerceAtLeast(0)/TOTAL_MINUTES.toFloat());val hh=(gridH*(dur/TOTAL_MINUTES.toFloat())).coerceAtLeast(40.dp);Surface(color=appointmentColor(a),shape=RoundedCornerShape(9.dp),tonalElevation=2.dp,modifier=Modifier.offset(x=labelW,y=y).fillMaxWidth().height(hh).padding(end=5.dp).clickable{onOpen(a)}){Column(Modifier.padding(horizontal=9.dp,vertical=5.dp)){Text("${ecTime(a.startsAt).format(DateTimeFormatter.ofPattern("HH:mm"))}–${ecTime(a.endsAt).format(DateTimeFormatter.ofPattern("HH:mm"))} · ${a.clientName}",fontWeight=FontWeight.Bold,maxLines=1,overflow=TextOverflow.Ellipsis);val s=ecServices(a);if(s.isNotBlank())Text(s,style=MaterialTheme.typography.labelSmall,maxLines=2,overflow=TextOverflow.Ellipsis)}}}}
+        Column(Modifier.fillMaxSize()){
+            (START_HOUR until END_HOUR).forEach{h->
+                Row(Modifier.weight(1f).fillMaxWidth()){
+                    Text(String.format("%02d",h),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.width(labelW).padding(top=2.dp))
+                    Box(Modifier.weight(1f).fillMaxHeight().padding(.5.dp).background(CAL_GRID,RoundedCornerShape(5.dp)))
+                }
+            }
+        }
+        frees.forEach{t->
+            val p=LocalTime.parse(t);val m=p.hour*60+p.minute
+            if(m in START_HOUR*60 until END_HOUR*60){
+                val y=gridH*((m-START_HOUR*60)/TOTAL_MINUTES.toFloat())
+                Surface(color=CAL_AVAILABLE,border=BorderStroke(1.dp,CAL_AVAILABLE_BORDER),shape=RoundedCornerShape(8.dp),modifier=Modifier.offset(x=labelW,y=y).fillMaxWidth().height(30.dp).padding(end=5.dp)){
+                    Row(Modifier.fillMaxSize().padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically){Text(t,fontWeight=FontWeight.Bold,color=Color(0xFF3E6C52));Spacer(Modifier.width(8.dp));Text("Доступно для записи",style=MaterialTheme.typography.labelSmall,color=Color(0xFF3E6C52))}
+                }
+            }
+        }
+        dayBlocks.forEach{b->
+            val sm=ecMinutes(b.startsAt)-START_HOUR*60;val dur=(ecMinutes(b.endsAt)-ecMinutes(b.startsAt)).coerceAtLeast(15)
+            if(sm in 0 until TOTAL_MINUTES){
+                val y=gridH*(sm/TOTAL_MINUTES.toFloat());val hh=(gridH*(dur/TOTAL_MINUTES.toFloat())).coerceAtLeast(28.dp)
+                Surface(color=CAL_BREAK,shape=RoundedCornerShape(8.dp),modifier=Modifier.offset(x=labelW,y=y).fillMaxWidth().height(hh).padding(end=5.dp)){
+                    Column(Modifier.padding(horizontal=8.dp,vertical=4.dp)){Text("${ecTime(b.startsAt).format(DateTimeFormatter.ofPattern("HH:mm"))}–${ecTime(b.endsAt).format(DateTimeFormatter.ofPattern("HH:mm"))} · Перерыв",fontWeight=FontWeight.SemiBold);if(b.label.isNotBlank())Text(b.label,style=MaterialTheme.typography.labelSmall)}
+                }
+            }
+        }
+        dayAppts.forEach{a->
+            val sm=ecMinutes(a.startsAt)-START_HOUR*60;val dur=ecDuration(a).toInt()
+            if(sm<TOTAL_MINUTES){
+                val y=gridH*(sm.coerceAtLeast(0)/TOTAL_MINUTES.toFloat());val hh=(gridH*(dur/TOTAL_MINUTES.toFloat())).coerceAtLeast(40.dp)
+                Surface(color=appointmentColor(a),shape=RoundedCornerShape(9.dp),tonalElevation=2.dp,modifier=Modifier.offset(x=labelW,y=y).fillMaxWidth().height(hh).padding(end=5.dp).clickable{onOpen(a)}){
+                    Column(Modifier.padding(horizontal=9.dp,vertical=5.dp)){
+                        Text("${ecTime(a.startsAt).format(DateTimeFormatter.ofPattern("HH:mm"))}–${ecTime(a.endsAt).format(DateTimeFormatter.ofPattern("HH:mm"))} · ${a.clientName}",fontWeight=FontWeight.Bold,maxLines=1,overflow=TextOverflow.Ellipsis)
+                        val s=ecServices(a);if(s.isNotBlank())Text(s,style=MaterialTheme.typography.labelSmall,maxLines=2,overflow=TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
     }
 }
