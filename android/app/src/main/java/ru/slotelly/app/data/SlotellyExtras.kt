@@ -1,9 +1,12 @@
 package ru.slotelly.app.data
 
+import com.google.gson.Gson
 import com.google.gson.JsonObject
 import java.time.Instant
 
 private const val SLOTELLY_WORKSPACE = "11111111-1111-4111-8111-111111111111"
+private val extrasGson = Gson()
+private fun jsonBody(values: Map<String, Any?>): JsonObject = extrasGson.toJsonTree(values).asJsonObject
 
 class SlotellyExtras(private val api: SlotellyApi = SlotellyApi.create()) {
     suspend fun waitlist(pin: String): List<WaitlistItem> = parseWaitlist(api.waitlist(mapOf("p_pin" to pin)))
@@ -32,27 +35,27 @@ class SlotellyExtras(private val api: SlotellyApi = SlotellyApi.create()) {
         return WaitlistDetail(request,history,offers)
     }
 
-    suspend fun waitlistDetail(pin: String, id: String): WaitlistDetail = parseDetail(api.waitlistDetail(mapOf<String,Any>("p_pin" to pin,"p_id" to id)),id)
+    suspend fun waitlistDetail(pin: String, id: String): WaitlistDetail = parseDetail(api.waitlistDetail(jsonBody(mapOf("p_pin" to pin,"p_id" to id))),id)
 
     suspend fun updateWaitlist(pin:String,item:WaitlistItem,desiredText:String,dateFrom:String?,dateTo:String?,timeFrom:String?,timeTo:String?,preferredMessenger:String,status:String?=null): WaitlistDetail {
-        val body=mutableMapOf<String,Any>("p_pin" to pin,"p_id" to item.id,"p_desired_text" to desiredText,"p_preferred_messenger" to preferredMessenger)
+        val body=mutableMapOf<String,Any?>("p_pin" to pin,"p_id" to item.id,"p_desired_text" to desiredText,"p_preferred_messenger" to preferredMessenger)
         dateFrom?.let{body["p_date_from"]=it};dateTo?.let{body["p_date_to"]=it};timeFrom?.let{body["p_time_from"]=it};timeTo?.let{body["p_time_to"]=it};status?.let{body["p_status"]=it}
-        return parseDetail(api.waitlistUpdate(body),item.id)
+        return parseDetail(api.waitlistUpdate(jsonBody(body)),item.id)
     }
 
     suspend fun clientExtra(pin:String,clientId:String):ClientExtra{
-        val j=api.clientExtra(mapOf<String,Any>("p_pin" to pin,"p_client" to clientId));val tg=j.getAsJsonObject("telegram")
+        val j=api.clientExtra(jsonBody(mapOf("p_pin" to pin,"p_client" to clientId)));val tg=j.getAsJsonObject("telegram")
         return ClientExtra(j["birth_date"]?.takeUnless{it.isJsonNull}?.asString,j["comment"]?.takeUnless{it.isJsonNull}?.asString.orEmpty(),j["discount_percent"]?.takeUnless{it.isJsonNull}?.asDouble?:0.0,tg?.get("linked")?.asBoolean?:false,tg?.get("username")?.takeUnless{it.isJsonNull}?.asString.orEmpty())
     }
 
     suspend fun updateClient(pin:String,clientId:String,name:String,phone:String,messenger:String,birthDate:String?):ClientExtra{
-        val body=mutableMapOf<String,Any>("p_pin" to pin,"p_client" to clientId,"p_name" to name,"p_phone" to phone,"p_messenger" to messenger);birthDate?.let{body["p_birth_date"]=it};api.updateClient(body);return clientExtra(pin,clientId)
+        val body=mutableMapOf<String,Any?>("p_pin" to pin,"p_client" to clientId,"p_name" to name,"p_phone" to phone,"p_messenger" to messenger);birthDate?.let{body["p_birth_date"]=it};api.updateClient(jsonBody(body));return clientExtra(pin,clientId)
     }
 
     suspend fun telegramStatus(pin:String,clientId:String):ClientExtra{
-        val j=api.telegramLinkStatus(mapOf<String,Any>("p_workspace" to SLOTELLY_WORKSPACE,"p_pin" to pin,"p_client" to clientId));return ClientExtra(telegramLinked=j["linked"]?.asBoolean?:false,telegramUsername=j["username"]?.takeUnless{it.isJsonNull}?.asString.orEmpty())
+        val j=api.telegramLinkStatus(jsonBody(mapOf("p_workspace" to SLOTELLY_WORKSPACE,"p_pin" to pin,"p_client" to clientId)));return ClientExtra(telegramLinked=j["linked"]?.asBoolean?:false,telegramUsername=j["username"]?.takeUnless{it.isJsonNull}?.asString.orEmpty())
     }
-    suspend fun createTelegramLink(pin:String,clientId:String):String=api.createTelegramLink(mapOf<String,Any>("p_workspace" to SLOTELLY_WORKSPACE,"p_pin" to pin,"p_client" to clientId))["url"]?.takeUnless{it.isJsonNull}?.asString.orEmpty()
+    suspend fun createTelegramLink(pin:String,clientId:String):String=api.createTelegramLink(jsonBody(mapOf("p_workspace" to SLOTELLY_WORKSPACE,"p_pin" to pin,"p_client" to clientId)))["url"]?.takeUnless{it.isJsonNull}?.asString.orEmpty()
 
     suspend fun report(pin:String,from:Instant,to:Instant):ReportSummary{
         val j=api.call(ApiEnvelope(pin,"report",mapOf("from" to from.toString(),"to" to to.toString())));var total=0.0;var cash=0.0;var card=0.0;var other=0.0;var paid=0;var unpaid=0;var plan=0.0
