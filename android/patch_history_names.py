@@ -35,3 +35,8 @@ new_client = '''private fun notificationClient(r:JsonObject):String{
 '''
 s = s[:start] + new_client + s[end:]
 p.write_text(s, encoding='utf-8')
+
+main = Path('app/src/main/java/ru/slotelly/app/NativeMainActivity.kt')
+m = main.read_text(encoding='utf-8')
+m = m.replace('0.6.1 WORK','0.6.3 WORK').replace('0.6 WORK','0.6.3 WORK')
+main.write_text(m, encoding='utf-8')
