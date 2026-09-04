@@ -9,11 +9,11 @@ android {
     namespace = "ru.slotelly.app"
     compileSdk = 35
     defaultConfig {
-        applicationId = "ru.slotelly.app.work060"
+        applicationId = "ru.slotelly.app.work061"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
-        versionName = "0.6.0-work"
+        versionName = "0.6.1-work"
         buildConfigField("String", "SUPABASE_URL", "\"https://acukaqoguzkrphauovhk.supabase.co\"")
         buildConfigField("String", "SUPABASE_KEY", "\"sb_publishable_2aKxmTx4WtnZglspnun9gA_goe71amD\"")
     }
