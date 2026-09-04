@@ -26,6 +26,7 @@ jobs:
         run: |
           python3 patch_work_build.py
           python3 patch_day_view.py
+          python3 patch_history_names.py
       - name: Build debug APK
         working-directory: android
         run: gradle :app:assembleDebug --stacktrace
@@ -35,12 +36,12 @@ jobs:
           APK=app/build/outputs/apk/debug/app-debug.apk
           AAPT=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)
           "$AAPT" dump badging "$APK" | tee /tmp/apk-badging.txt
-          grep -F "package: name='ru.slotelly.app.work062' versionCode='1' versionName='0.6.2-work'" /tmp/apk-badging.txt
-          grep -F "application-label:'Slotelly 0.6.2 WORK'" /tmp/apk-badging.txt
+          grep -F "package: name='ru.slotelly.app.work063' versionCode='1' versionName='0.6.3-work'" /tmp/apk-badging.txt
+          grep -F "application-label:'Slotelly 0.6.3 WORK'" /tmp/apk-badging.txt
           grep -F "launchable-activity: name='ru.slotelly.app.NativeMainActivity'" /tmp/apk-badging.txt
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: slotelly-0.6.2-work-apk
+          name: slotelly-0.6.3-work-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
