@@ -8,35 +8,15 @@ plugins {
 android {
     namespace = "ru.slotelly.app"
     compileSdk = 35
-
-    signingConfigs {
-        create("stableTest") {
-            val ksPath = System.getenv("SLOTELLY_KEYSTORE_PATH")
-            if (!ksPath.isNullOrBlank()) storeFile = file(ksPath)
-            storePassword = System.getenv("SLOTELLY_KEYSTORE_PASSWORD") ?: ""
-            keyAlias = System.getenv("SLOTELLY_KEY_ALIAS") ?: "slotelly-test"
-            keyPassword = System.getenv("SLOTELLY_KEY_PASSWORD") ?: ""
-        }
-    }
-
     defaultConfig {
-        applicationId = "ru.slotelly.app.test054"
+        applicationId = "ru.slotelly.app.work060"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.5.6-test"
+        versionCode = 1
+        versionName = "0.6.0-work"
         buildConfigField("String", "SUPABASE_URL", "\"https://acukaqoguzkrphauovhk.supabase.co\"")
         buildConfigField("String", "SUPABASE_KEY", "\"sb_publishable_2aKxmTx4WtnZglspnun9gA_goe71amD\"")
     }
-
-    buildTypes {
-        debug {
-            if (System.getenv("SLOTELLY_SIGNING_ENABLED") == "true") {
-                signingConfig = signingConfigs.getByName("stableTest")
-            }
-        }
-    }
-
     buildFeatures { compose = true; buildConfig = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
