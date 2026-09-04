@@ -41,13 +41,8 @@ private fun DayTimeline(
                 val p=LocalTime.parse(t);val m=p.hour*60+p.minute
                 if(m in START_HOUR*60 until END_HOUR*60){
                     val y=gridH*((m-START_HOUR*60)/TOTAL_MINUTES.toFloat())
-                    Surface(
-                        color=CAL_AVAILABLE,border=BorderStroke(.8.dp,CAL_AVAILABLE_BORDER.copy(alpha=.8f)),shape=RoundedCornerShape(5.dp),
-                        modifier=Modifier.offset(x=labelW,y=y).width(contentW).height(22.dp).padding(horizontal=1.dp).clickable{onEditAvailability(date,t)}
-                    ){
-                        Row(Modifier.fillMaxSize().padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically){
-                            Text(t,style=MaterialTheme.typography.labelMedium,color=Color(0xFF3E6C52),fontWeight=FontWeight.SemiBold)
-                        }
+                    Surface(color=CAL_AVAILABLE,border=BorderStroke(.8.dp,CAL_AVAILABLE_BORDER.copy(alpha=.8f)),shape=RoundedCornerShape(5.dp),modifier=Modifier.offset(x=labelW,y=y).width(contentW).height(22.dp).padding(horizontal=1.dp).clickable{onEditAvailability(date,t)}){
+                        Row(Modifier.fillMaxSize().padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically){Text(t,style=MaterialTheme.typography.labelMedium,color=Color(0xFF3E6C52),fontWeight=FontWeight.SemiBold)}
                     }
                 }
             }
@@ -56,10 +51,7 @@ private fun DayTimeline(
                 if(sm in 0 until TOTAL_MINUTES){
                     val y=gridH*(sm/TOTAL_MINUTES.toFloat());val hh=(gridH*(dur/TOTAL_MINUTES.toFloat())).coerceAtLeast(28.dp)
                     Surface(color=CAL_BREAK,shape=RoundedCornerShape(7.dp),modifier=Modifier.offset(x=labelW,y=y).width(contentW).height(hh).padding(horizontal=1.dp)){
-                        Column(Modifier.padding(horizontal=8.dp,vertical=4.dp)){
-                            Text("${ecTime(b.startsAt).format(DateTimeFormatter.ofPattern("HH:mm"))}–${ecTime(b.endsAt).format(DateTimeFormatter.ofPattern("HH:mm"))} · Перерыв",fontWeight=FontWeight.SemiBold,style=MaterialTheme.typography.labelMedium)
-                            if(b.label.isNotBlank())Text(b.label,style=MaterialTheme.typography.labelSmall)
-                        }
+                        Column(Modifier.padding(horizontal=8.dp,vertical=4.dp)){Text("${ecTime(b.startsAt).format(DateTimeFormatter.ofPattern("HH:mm"))}–${ecTime(b.endsAt).format(DateTimeFormatter.ofPattern("HH:mm"))} · Перерыв",fontWeight=FontWeight.SemiBold,style=MaterialTheme.typography.labelMedium);if(b.label.isNotBlank())Text(b.label,style=MaterialTheme.typography.labelSmall)}
                     }
                 }
             }
@@ -68,11 +60,7 @@ private fun DayTimeline(
                 if(sm<TOTAL_MINUTES){
                     val y=gridH*(sm/TOTAL_MINUTES.toFloat());val hh=(gridH*(dur/TOTAL_MINUTES.toFloat())).coerceAtLeast(30.dp)
                     Surface(color=appointmentColor(a),shape=RoundedCornerShape(7.dp),tonalElevation=1.dp,modifier=Modifier.offset(x=labelW,y=y).width(contentW).height(hh).padding(horizontal=1.dp).clickable{onOpen(a)}){
-                        Column(Modifier.padding(horizontal=8.dp,vertical=4.dp)){
-                            Text(ecTime(a.startsAt).format(DateTimeFormatter.ofPattern("HH:mm")),style=MaterialTheme.typography.labelMedium,fontWeight=FontWeight.Bold,maxLines=1)
-                            Text(a.clientName,style=MaterialTheme.typography.bodySmall,fontWeight=FontWeight.SemiBold,maxLines=1,overflow=TextOverflow.Ellipsis)
-                            if(hh>44.dp){val s=ecServices(a);if(s.isNotBlank())Text(s,style=MaterialTheme.typography.labelSmall,maxLines=2,overflow=TextOverflow.Ellipsis)}
-                        }
+                        Column(Modifier.padding(horizontal=8.dp,vertical=4.dp)){Text(ecTime(a.startsAt).format(DateTimeFormatter.ofPattern("HH:mm")),style=MaterialTheme.typography.labelMedium,fontWeight=FontWeight.Bold,maxLines=1);Text(a.clientName,style=MaterialTheme.typography.bodySmall,fontWeight=FontWeight.SemiBold,maxLines=1,overflow=TextOverflow.Ellipsis);if(hh>44.dp){val s=ecServices(a);if(s.isNotBlank())Text(s,style=MaterialTheme.typography.labelSmall,maxLines=2,overflow=TextOverflow.Ellipsis)}}
                     }
                 }
             }
@@ -82,3 +70,7 @@ private fun DayTimeline(
 '''
 c = c[:start] + new_day + '\n'
 cal.write_text(c, encoding='utf-8')
+
+main = Path('app/src/main/java/ru/slotelly/app/NativeMainActivity.kt')
+m = main.read_text(encoding='utf-8').replace('0.6.1 WORK','0.6.2 WORK')
+main.write_text(m, encoding='utf-8')
