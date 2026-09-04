@@ -40,9 +40,48 @@ private fun OnlineBookingOverlay(pin:String,api:NativeSettingsExtras,settings:Js
     }
 }'''
 text = text[:start] + new_block + text[end:]
+
+ws = text.index('@Composable\nprivate fun WorkSettingsOverlay')
+we = text.index('\n\n@Composable\nprivate fun NotificationsOverlay', ws)
+compact_work = r'''@Composable
+private fun WorkSettingsOverlay(pin:String,api:NativeSettingsExtras,settings:JsonObject,onClose:()->Unit,onSaved:()->Unit){
+    val scope=rememberCoroutineScope();val schedule=settings.getAsJsonObject("schedule")?:JsonObject()
+    var start by remember{mutableStateOf(schedule.get("start")?.asString?:"10:00")};var end by remember{mutableStateOf(schedule.get("end")?.asString?:"22:30")};var weekdays by remember{mutableStateOf(schedule.getAsJsonArray("weekdays")?.map{it.asInt}?.toSet()?:emptySet())};var saving by remember{mutableStateOf(false)};var error by remember{mutableStateOf("")}
+    val fullDays=listOf("Понедельник","Вторник","Среда","Четверг","Пятница","Суббота","Воскресенье")
+    FullOverlay(onClose){
+        Text("Режим работы",style=MaterialTheme.typography.headlineSmall)
+        Text("Включено = рабочий день · выключено = выходной",style=MaterialTheme.typography.bodySmall)
+        Spacer(Modifier.height(4.dp))
+        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(3.dp)){
+            fullDays.forEachIndexed{d,label->val working=d in weekdays
+                Card(colors=CardDefaults.cardColors(containerColor=if(working)MaterialTheme.colorScheme.primaryContainer.copy(alpha=.45f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.35f)),modifier=Modifier.fillMaxWidth().weight(1f)){
+                    Row(Modifier.fillMaxSize().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically){
+                        Column(Modifier.weight(1f)){Text(label,style=MaterialTheme.typography.bodyLarge,fontWeight=if(working)FontWeight.SemiBold else FontWeight.Normal);Text(if(working)"Рабочий" else "Выходной",style=MaterialTheme.typography.labelSmall,color=if(working)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)}
+                        Switch(checked=working,onCheckedChange={on->weekdays=if(on)weekdays+d else weekdays-d})
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(5.dp));Text("Рабочий день",fontWeight=FontWeight.SemiBold,style=MaterialTheme.typography.bodyMedium)
+        Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){OutlinedTextField(start,{start=it},label={Text("Начало")},singleLine=true,modifier=Modifier.weight(1f));OutlinedTextField(end,{end=it},label={Text("Конец")},singleLine=true,modifier=Modifier.weight(1f))}
+        if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall)
+        Spacer(Modifier.height(6.dp));Button(onClick={saving=true;scope.launch{val base=runCatching{EM_GSON.fromJson(schedule,MutableMap::class.java) as MutableMap<String,Any?>}.getOrElse{mutableMapOf()};base["start"]=start;base["end"]=end;base["weekdays"]=weekdays.sorted();runCatching{api.patchSettings(pin,mapOf("schedule" to base))}.onSuccess{onSaved()}.onFailure{error=it.message?:"Ошибка сохранения"};saving=false}},enabled=!saving&&weekdays.isNotEmpty(),modifier=Modifier.fillMaxWidth()){Text(if(saving)"Сохраняю…" else "Сохранить режим работы")}
+    }
+}'''
+text = text[:ws] + compact_work + text[we:]
 more.write_text(text, encoding='utf-8')
 
 main = Path('app/src/main/java/ru/slotelly/app/NativeMainActivity.kt')
 m = main.read_text(encoding='utf-8')
-m = m.replace('Slotelly TEST','Slotelly').replace('Android 0.5.5 test','0.6 WORK').replace('Открыть Slotelly TEST','Открыть Slotelly')
+m = m.replace('Slotelly TEST','Slotelly').replace('Android 0.5.5 test','0.6.1 WORK').replace('Открыть Slotelly TEST','Открыть Slotelly')
 main.write_text(m, encoding='utf-8')
+
+cal = Path('app/src/main/java/ru/slotelly/app/EnhancedCalendar.kt')
+c = cal.read_text(encoding='utf-8')
+c = c.replace('import androidx.compose.foundation.clickable\n','import androidx.compose.foundation.clickable\nimport androidx.compose.foundation.gestures.detectHorizontalDragGestures\n')
+c = c.replace('import androidx.compose.ui.Modifier\n','import androidx.compose.ui.Modifier\nimport androidx.compose.ui.input.pointer.pointerInput\n')
+old = '    Column(Modifier.fillMaxSize().padding(horizontal=10.dp)) {'
+new = '''    var swipeX by remember { mutableStateOf(0f) }\n    Column(Modifier.fillMaxSize().padding(horizontal=10.dp).pointerInput(mode,focus){\n        detectHorizontalDragGestures(\n            onDragEnd={\n                if(swipeX < -70f) focus=date.plusDays(if(mode==CalendarMode.WEEK)7 else 1).toString()\n                else if(swipeX > 70f) focus=date.minusDays(if(mode==CalendarMode.WEEK)7 else 1).toString()\n                swipeX=0f\n            },\n            onHorizontalDrag={_,amount->swipeX+=amount}\n        )\n    }) {'''
+if old not in c: raise SystemExit('calendar root marker not found')
+c = c.replace(old,new,1)
+cal.write_text(c, encoding='utf-8')
