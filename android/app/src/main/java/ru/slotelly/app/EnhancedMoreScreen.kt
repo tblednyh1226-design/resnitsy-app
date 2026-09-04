@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -13,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -21,10 +23,15 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.coroutines.launch
 import ru.slotelly.app.data.NativeSettingsExtras
+import java.time.*
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 private const val EM_BOOKING_LINK="https://tblednyh1226-design.github.io/resnitsy-app/booking.html"
 private const val EM_BOT_LINK="https://t.me/resnicy_tatyana_bot"
 private val EM_GSON=Gson()
+private val EM_ZONE=ZoneId.of("Europe/Moscow")
+private val EM_RU=Locale("ru","RU")
 
 @Composable
 fun EnhancedMoreScreen(pin:String,settingsJson:String,syncedAt:Long?,onSync:()->Unit,onSettingsChanged:()->Unit){
@@ -43,7 +50,7 @@ fun EnhancedMoreScreen(pin:String,settingsJson:String,syncedAt:Long?,onSync:()->
         Text("Ещё",style=MaterialTheme.typography.headlineSmall)
         SettingsCard("Онлайн-запись",if(online)"Включена · ссылка для клиентов" else "Выключена · ссылка для клиентов"){section="online"}
         SettingsCard("Режим работы","$days · $start–$end"){section="work"}
-        SettingsCard("Уведомления","Напоминания, каналы, шаблоны и журнал"){section="notifications"}
+        SettingsCard("Уведомления","Напоминания, каналы и шаблоны"){section="notifications"}
         SettingsCard("Техподдержка","Помощь и сообщение об ошибке"){section="support"}
 
         Card(Modifier.fillMaxWidth()){
@@ -79,14 +86,8 @@ private fun OnlineBookingOverlay(pin:String,api:NativeSettingsExtras,settings:Js
         Text("Онлайн-запись",style=MaterialTheme.typography.headlineSmall)
         Card(colors=CardDefaults.cardColors(containerColor=if(online)MaterialTheme.colorScheme.primaryContainer.copy(alpha=.55f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.55f)),modifier=Modifier.fillMaxWidth()){
             Row(Modifier.fillMaxWidth().padding(14.dp),verticalAlignment=Alignment.CenterVertically){
-                Column(Modifier.weight(1f)){
-                    Text("Онлайн-запись",fontWeight=FontWeight.SemiBold)
-                    Text(if(online)"Включена" else "Выключена",style=MaterialTheme.typography.bodySmall)
-                }
-                Switch(checked=online,onCheckedChange={v->
-                    online=v;saving=true;error=""
-                    scope.launch{runCatching{api.setOnlineBooking(pin,v)}.onSuccess{onSaved()}.onFailure{online=!v;error=it.message?:"Не удалось сохранить"};saving=false}
-                },enabled=!saving)
+                Column(Modifier.weight(1f)){Text("Онлайн-запись",fontWeight=FontWeight.SemiBold);Text(if(online)"Включена" else "Выключена",style=MaterialTheme.typography.bodySmall)}
+                Switch(checked=online,onCheckedChange={v->online=v;saving=true;error="";scope.launch{runCatching{api.setOnlineBooking(pin,v)}.onSuccess{onSaved()}.onFailure{online=!v;error=it.message?:"Не удалось сохранить"};saving=false}},enabled=!saving)
             }
         }
         Spacer(Modifier.height(10.dp))
@@ -137,25 +138,28 @@ private fun WorkSettingsOverlay(pin:String,api:NativeSettingsExtras,settings:Jso
             if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error)
         }
         Spacer(Modifier.height(10.dp))
-        Button(onClick={saving=true;scope.launch{
-            val base=runCatching{EM_GSON.fromJson(schedule,MutableMap::class.java) as MutableMap<String,Any?>}.getOrElse{mutableMapOf()};base["start"]=start;base["end"]=end;base["weekdays"]=weekdays.sorted()
-            runCatching{api.patchSettings(pin,mapOf("schedule" to base))}.onSuccess{onSaved()}.onFailure{error=it.message?:"Ошибка сохранения"};saving=false
-        }},enabled=!saving&&weekdays.isNotEmpty(),modifier=Modifier.fillMaxWidth()){Text(if(saving)"Сохраняю…" else "Сохранить режим работы")}
+        Button(onClick={saving=true;scope.launch{val base=runCatching{EM_GSON.fromJson(schedule,MutableMap::class.java) as MutableMap<String,Any?>}.getOrElse{mutableMapOf()};base["start"]=start;base["end"]=end;base["weekdays"]=weekdays.sorted();runCatching{api.patchSettings(pin,mapOf("schedule" to base))}.onSuccess{onSaved()}.onFailure{error=it.message?:"Ошибка сохранения"};saving=false}},enabled=!saving&&weekdays.isNotEmpty(),modifier=Modifier.fillMaxWidth()){Text(if(saving)"Сохраняю…" else "Сохранить режим работы")}
     }
 }
 
 @Composable
 private fun NotificationsOverlay(pin:String,api:NativeSettingsExtras,onClose:()->Unit){
-    val scope=rememberCoroutineScope();var data by remember{mutableStateOf<JsonObject?>(null)};var loading by remember{mutableStateOf(true)};var error by remember{mutableStateOf("")};var journal by remember{mutableStateOf<List<JsonObject>>(emptyList())}
-    LaunchedEffect(Unit){runCatching{api.notificationsGet(pin)}.onSuccess{data=it}.onFailure{error=it.message?:"Не удалось загрузить"};runCatching{api.notificationsJournal(pin)}.onSuccess{j->journal=j.getAsJsonArray("rows")?.map{it.asJsonObject}?:emptyList()};loading=false}
+    var data by remember{mutableStateOf<JsonObject?>(null)}
+    var loading by remember{mutableStateOf(true)}
+    var error by remember{mutableStateOf("")}
+    var showHistory by remember{mutableStateOf(false)}
+    LaunchedEffect(Unit){runCatching{api.notificationsGet(pin)}.onSuccess{data=it}.onFailure{error=it.message?:"Не удалось загрузить"};loading=false}
     FullOverlay(onClose){
-        Text("Уведомления",style=MaterialTheme.typography.headlineSmall);if(loading)LinearProgressIndicator(Modifier.fillMaxWidth());if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error)
-        data?.let{root->NotificationSettingsBody(pin,api,root,journal)}
+        Text("Уведомления",style=MaterialTheme.typography.headlineSmall)
+        if(loading)LinearProgressIndicator(Modifier.fillMaxWidth())
+        if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error)
+        data?.let{root->NotificationSettingsBody(pin,api,root,onOpenHistory={showHistory=true})}
     }
+    if(showHistory) NotificationHistoryOverlay(pin,api,onClose={showHistory=false})
 }
 
 @Composable
-private fun ColumnScope.NotificationSettingsBody(pin:String,api:NativeSettingsExtras,root:JsonObject,journal:List<JsonObject>){
+private fun ColumnScope.NotificationSettingsBody(pin:String,api:NativeSettingsExtras,root:JsonObject,onOpenHistory:()->Unit){
     val scope=rememberCoroutineScope();val n=root.getAsJsonObject("settings")?:JsonObject();val status=root.getAsJsonObject("status")?:JsonObject();val channels=n.getAsJsonObject("channels")?:JsonObject();val master=n.getAsJsonObject("master_push")?:JsonObject();val templates=n.getAsJsonObject("templates")?:JsonObject()
     var enabled by remember{mutableStateOf(n.get("enabled")?.asBoolean?:true)};var confirm by remember{mutableStateOf(n.get("confirmation_enabled")?.asBoolean?:true)};var move by remember{mutableStateOf(n.get("reschedule_enabled")?.asBoolean?:true)};var cancel by remember{mutableStateOf(n.get("cancellation_enabled")?.asBoolean?:true)}
     var dayBefore by remember{mutableStateOf(n.get("reminder_day_before")?.asBoolean?:true)};var dayTime by remember{mutableStateOf(n.get("reminder_day_before_time")?.asString?:"19:00")};var hoursOn by remember{mutableStateOf(n.get("reminder_hours_before")?.asBoolean?:false)};var hours by remember{mutableStateOf(n.get("reminder_hours")?.asInt?.toString()?:"3")}
@@ -163,19 +167,81 @@ private fun ColumnScope.NotificationSettingsBody(pin:String,api:NativeSettingsEx
     var tplConfirm by remember{mutableStateOf(templates.get("confirmation")?.asString?:"")};var tplReminder by remember{mutableStateOf(templates.get("reminder")?.asString?:"")};var tplMove by remember{mutableStateOf(templates.get("reschedule")?.asString?:"")};var tplCancel by remember{mutableStateOf(templates.get("cancellation")?.asString?:"")};var saveMsg by remember{mutableStateOf("")}
     val scroll=rememberScrollState()
     Column(Modifier.weight(1f).verticalScroll(scroll)){
+        Card(Modifier.fillMaxWidth().clickable{onOpenHistory()}){Row(Modifier.fillMaxWidth().padding(12.dp),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("История отправки",fontWeight=FontWeight.SemiBold);Text("Текущая и прошлые недели",style=MaterialTheme.typography.bodySmall)};Text("›",style=MaterialTheme.typography.headlineSmall)}}
+        Spacer(Modifier.height(8.dp))
         val bot=status.getAsJsonObject("telegram_bot");Card(Modifier.fillMaxWidth()){Column(Modifier.padding(10.dp)){Text("Telegram-бот",fontWeight=FontWeight.SemiBold);Text(if(bot!=null)"Подключён @${bot.get("bot_username")?.asString?:""}" else "Не подключён",style=MaterialTheme.typography.bodySmall)}}
         NotifySwitch("Автоуведомления клиентам",enabled){enabled=it};NotifySwitch("Подтверждение записи",confirm){confirm=it};NotifySwitch("Перенос записи",move){move=it};NotifySwitch("Отмена записи",cancel){cancel=it};NotifySwitch("Напоминание накануне",dayBefore){dayBefore=it}
         OutlinedTextField(dayTime,{dayTime=it},label={Text("Время напоминания")},modifier=Modifier.fillMaxWidth());NotifySwitch("Доп. напоминание за несколько часов",hoursOn){hoursOn=it};OutlinedTextField(hours,{hours=it},label={Text("За сколько часов")},modifier=Modifier.fillMaxWidth())
         Text("Каналы",style=MaterialTheme.typography.titleMedium);NotifySwitch("Telegram",tg){tg=it};NotifySwitch("WhatsApp",wa){wa=it};NotifySwitch("VK",vk){vk=it};NotifySwitch("MAX",max){max=it}
         Text("Шаблоны",style=MaterialTheme.typography.titleMedium);OutlinedTextField(tplConfirm,{tplConfirm=it},label={Text("Подтверждение")},minLines=3,modifier=Modifier.fillMaxWidth());OutlinedTextField(tplReminder,{tplReminder=it},label={Text("Напоминание")},minLines=3,modifier=Modifier.fillMaxWidth());OutlinedTextField(tplMove,{tplMove=it},label={Text("Перенос")},minLines=2,modifier=Modifier.fillMaxWidth());OutlinedTextField(tplCancel,{tplCancel=it},label={Text("Отмена")},minLines=2,modifier=Modifier.fillMaxWidth())
-        Text("Журнал уведомлений",style=MaterialTheme.typography.titleMedium);journal.take(12).forEach{r->Card(Modifier.fillMaxWidth().padding(vertical=2.dp)){Column(Modifier.padding(8.dp)){Text("${r.get("template_type")?.asString?:"Сообщение"} · ${r.get("delivery_status")?.asString?:""}",fontWeight=FontWeight.SemiBold);Text(r.get("message_text")?.asString?:"",maxLines=2,style=MaterialTheme.typography.bodySmall)}}}
     }
     if(saveMsg.isNotBlank())Text(saveMsg,style=MaterialTheme.typography.bodySmall)
-    Button(onClick={scope.launch{
-        val settings=mapOf<String,Any?>("enabled" to enabled,"confirmation_enabled" to confirm,"reschedule_enabled" to move,"cancellation_enabled" to cancel,"reminder_day_before" to dayBefore,"reminder_day_before_time" to dayTime,"reminder_hours_before" to hoursOn,"reminder_hours" to (hours.toIntOrNull()?:3),"channels" to mapOf("telegram" to tg,"whatsapp" to wa,"vk" to vk,"max" to max),"master_push" to EM_GSON.fromJson(master,Map::class.java),"templates" to mapOf("confirmation" to tplConfirm,"reminder" to tplReminder,"reschedule" to tplMove,"cancellation" to tplCancel))
-        runCatching{api.notificationsSave(pin,settings)}.onSuccess{saveMsg="Сохранено ✓"}.onFailure{saveMsg=it.message?:"Ошибка"}
-    }},modifier=Modifier.fillMaxWidth()){Text("Сохранить уведомления")}
+    Button(onClick={scope.launch{val settings=mapOf<String,Any?>("enabled" to enabled,"confirmation_enabled" to confirm,"reschedule_enabled" to move,"cancellation_enabled" to cancel,"reminder_day_before" to dayBefore,"reminder_day_before_time" to dayTime,"reminder_hours_before" to hoursOn,"reminder_hours" to (hours.toIntOrNull()?:3),"channels" to mapOf("telegram" to tg,"whatsapp" to wa,"vk" to vk,"max" to max),"master_push" to EM_GSON.fromJson(master,Map::class.java),"templates" to mapOf("confirmation" to tplConfirm,"reminder" to tplReminder,"reschedule" to tplMove,"cancellation" to tplCancel));runCatching{api.notificationsSave(pin,settings)}.onSuccess{saveMsg="Сохранено ✓"}.onFailure{saveMsg=it.message?:"Ошибка"}}},modifier=Modifier.fillMaxWidth()){Text("Сохранить уведомления")}
 }
+
+@Composable
+private fun NotificationHistoryOverlay(pin:String,api:NativeSettingsExtras,onClose:()->Unit){
+    var rows by remember{mutableStateOf<List<JsonObject>>(emptyList())}
+    var loading by remember{mutableStateOf(true)}
+    var error by remember{mutableStateOf("")}
+    var weekOffset by remember{mutableStateOf(0)}
+    LaunchedEffect(Unit){runCatching{api.notificationsJournal(pin,limit=500)}.onSuccess{j->rows=j.getAsJsonArray("rows")?.map{it.asJsonObject}?:emptyList()}.onFailure{error=it.message?:"Не удалось загрузить историю"};loading=false}
+    val currentMonday=LocalDate.now(EM_ZONE).minusDays((LocalDate.now(EM_ZONE).dayOfWeek.value-1).toLong())
+    val monday=currentMonday.plusWeeks(weekOffset.toLong())
+    val sunday=monday.plusDays(6)
+    val weekRows=rows.filter{r->journalDate(r)?.let{!it.isBefore(monday)&&!it.isAfter(sunday)}==true}
+    val sent=weekRows.count{statusOk(it)}
+    val failed=weekRows.count{statusFailed(it)}
+    var drag by remember{mutableStateOf(0f)}
+
+    FullOverlay(onClose){
+        Text("История отправки",style=MaterialTheme.typography.headlineSmall)
+        Text("По неделям",style=MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.height(6.dp))
+        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+            IconButton(onClick={weekOffset--}){Text("‹",style=MaterialTheme.typography.headlineSmall)}
+            Column(Modifier.weight(1f),horizontalAlignment=Alignment.CenterHorizontally){
+                Text("${monday.format(DateTimeFormatter.ofPattern("d MMM",EM_RU))} – ${sunday.format(DateTimeFormatter.ofPattern("d MMM",EM_RU))}",fontWeight=FontWeight.SemiBold)
+                Text(if(weekOffset==0)"Текущая неделя" else if(weekOffset==-1)"Прошлая неделя" else "${-weekOffset} нед. назад",style=MaterialTheme.typography.bodySmall)
+            }
+            IconButton(onClick={if(weekOffset<0){{weekOffset++}}else null},enabled=weekOffset<0){Text("›",style=MaterialTheme.typography.headlineSmall)}
+        }
+        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){
+            SummaryCard("Всего",weekRows.size,Modifier.weight(1f))
+            SummaryCard("Отправлено",sent,Modifier.weight(1f))
+            SummaryCard("Ошибки",failed,Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(8.dp))
+        if(loading)LinearProgressIndicator(Modifier.fillMaxWidth())
+        if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error)
+        Column(Modifier.weight(1f).fillMaxWidth().pointerInput(weekOffset){detectHorizontalDragGestures(onDragEnd={if(drag<-60f&&weekOffset<0)weekOffset++ else if(drag>60f)weekOffset--;drag=0f}){_,amount->drag+=amount}}.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(6.dp)){
+            if(!loading&&weekRows.isEmpty()) Text("За эту неделю уведомлений не было",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            weekRows.sortedByDescending{journalInstant(it)}.forEach{r->
+                Card(Modifier.fillMaxWidth()){
+                    Column(Modifier.padding(10.dp),verticalArrangement=Arrangement.spacedBy(3.dp)){
+                        Row(Modifier.fillMaxWidth()){Text(notificationType(r),fontWeight=FontWeight.SemiBold,modifier=Modifier.weight(1f));Text(statusLabel(r),style=MaterialTheme.typography.labelMedium,color=if(statusFailed(r))MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)}
+                        val whenText=journalInstant(r)?.atZone(EM_ZONE)?.format(DateTimeFormatter.ofPattern("EEE, d MMM · HH:mm",EM_RU))
+                        if(whenText!=null)Text(whenText.replace(".",""),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        val client=r.get("client_name")?.takeUnless{it.isJsonNull}?.asString?:r.get("recipient_name")?.takeUnless{it.isJsonNull}?.asString
+                        if(!client.isNullOrBlank())Text(client,style=MaterialTheme.typography.bodySmall)
+                        Text(r.get("message_text")?.asString?:"",maxLines=3,style=MaterialTheme.typography.bodySmall)
+                        val channel=r.get("channel")?.takeUnless{it.isJsonNull}?.asString
+                        if(!channel.isNullOrBlank())Text(channel.replaceFirstChar{it.uppercase()},style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable private fun SummaryCard(title:String,value:Int,modifier:Modifier){Card(modifier){Column(Modifier.padding(9.dp)){Text(value.toString(),style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text(title,style=MaterialTheme.typography.labelSmall)}}}
+private fun journalInstant(r:JsonObject):Instant?{for(k in listOf("sent_at","created_at","scheduled_at","updated_at")){val s=r.get(k)?.takeUnless{it.isJsonNull}?.asString?:continue;runCatching{return Instant.parse(s)};runCatching{return OffsetDateTime.parse(s).toInstant()};runCatching{return LocalDateTime.parse(s).atZone(EM_ZONE).toInstant()}};return null}
+private fun journalDate(r:JsonObject):LocalDate?=journalInstant(r)?.atZone(EM_ZONE)?.toLocalDate()
+private fun journalStatus(r:JsonObject)=r.get("delivery_status")?.takeUnless{it.isJsonNull}?.asString?.lowercase()?:r.get("status")?.takeUnless{it.isJsonNull}?.asString?.lowercase().orEmpty()
+private fun statusFailed(r:JsonObject)=journalStatus(r) in setOf("failed","error","rejected","blocked","undelivered")
+private fun statusOk(r:JsonObject)=journalStatus(r) in setOf("sent","delivered","read","ready","success","ok")
+private fun statusLabel(r:JsonObject):String=when{statusFailed(r)->"Ошибка";journalStatus(r)=="delivered"->"Доставлено";journalStatus(r)=="read"->"Прочитано";journalStatus(r)=="ready"->"Готово";else->"Отправлено"}
+private fun notificationType(r:JsonObject):String=when(r.get("template_type")?.takeUnless{it.isJsonNull}?.asString){"confirmation"->"Подтверждение записи";"reminder"->"Напоминание";"reschedule"->"Перенос записи";"cancellation"->"Отмена записи";else->r.get("template_type")?.takeUnless{it.isJsonNull}?.asString?:"Уведомление"}
 
 @Composable private fun NotifySwitch(title:String,value:Boolean,onChange:(Boolean)->Unit){Row(Modifier.fillMaxWidth().padding(vertical=4.dp)){Text(title,modifier=Modifier.weight(1f));Switch(value,onCheckedChange=onChange)}}
 
