@@ -33,12 +33,12 @@ jobs:
           APK=app/build/outputs/apk/debug/app-debug.apk
           AAPT=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)
           "$AAPT" dump badging "$APK" | tee /tmp/apk-badging.txt
-          grep -F "package: name='ru.slotelly.app.work060' versionCode='1' versionName='0.6.0-work'" /tmp/apk-badging.txt
-          grep -F "application-label:'Slotelly 0.6 WORK'" /tmp/apk-badging.txt
+          grep -F "package: name='ru.slotelly.app.work061' versionCode='1' versionName='0.6.1-work'" /tmp/apk-badging.txt
+          grep -F "application-label:'Slotelly 0.6.1 WORK'" /tmp/apk-badging.txt
           grep -F "launchable-activity: name='ru.slotelly.app.NativeMainActivity'" /tmp/apk-badging.txt
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: slotelly-0.6-work-apk
+          name: slotelly-0.6.1-work-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
