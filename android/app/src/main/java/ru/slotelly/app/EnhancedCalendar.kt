@@ -20,6 +20,7 @@ import ru.slotelly.app.data.AvailabilityOverrideEntity
 import ru.slotelly.app.data.CalendarBlockEntity
 import java.time.*
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 private val EC_ZONE = ZoneId.of("Europe/Moscow")
@@ -49,7 +50,8 @@ private fun ecMinutes(iso: String): Int { val t=ecTime(iso); return t.hour*60+t.
 private fun ecDuration(a: AppointmentEntity): Long = Duration.between(Instant.parse(a.startsAt), Instant.parse(a.endsAt)).toMinutes().coerceAtLeast(30)
 private fun ecServices(a: AppointmentEntity): String = runCatching {
     JsonParser.parseString(a.servicesJson).asJsonArray.mapNotNull { e ->
-        val o=e.asJsonObject; o["name"]?.takeUnless { it.isJsonNull }?.asString ?: o["service_name_snapshot"]?.takeUnless { it.isJsonNull }?.asString
+        val o=e.asJsonObject
+        o["name"]?.takeUnless { it.isJsonNull }?.asString ?: o["service_name_snapshot"]?.takeUnless { it.isJsonNull }?.asString
     }.joinToString(" + ")
 }.getOrDefault("")
 private fun appointmentColor(a: AppointmentEntity): Color = when {
@@ -109,7 +111,8 @@ fun EnhancedCalendarScreen(
     blocks: List<CalendarBlockEntity>,
     overrides: List<AvailabilityOverrideEntity>,
     settingsJson: String,
-    onOpen: (AppointmentEntity) -> Unit
+    onOpen: (AppointmentEntity) -> Unit,
+    onEditAvailability: (LocalDate, String?) -> Unit
 ) {
     var mode by rememberSaveable { mutableStateOf(CalendarMode.WEEK) }
     var focus by rememberSaveable { mutableStateOf(LocalDate.now(EC_ZONE).toString()) }
@@ -127,15 +130,15 @@ fun EnhancedCalendarScreen(
             FilterChip(selected=mode==CalendarMode.DAY,onClick={mode=CalendarMode.DAY},label={Text("День",fontWeight=FontWeight.SemiBold)},modifier=Modifier.weight(1f))
         }
         Spacer(Modifier.height(4.dp))
-        if(mode==CalendarMode.WEEK) WeekTimeline(appointments,blocks,overrides,schedule,date,Modifier.weight(1f),onOpen){d->focus=d.toString();mode=CalendarMode.DAY}
-        else DayTimeline(appointments,blocks,overrides,schedule,date,Modifier.weight(1f),onOpen)
+        if(mode==CalendarMode.WEEK) WeekTimeline(appointments,blocks,overrides,schedule,date,Modifier.weight(1f),onOpen,onEditAvailability)
+        else DayTimeline(appointments,blocks,overrides,schedule,date,Modifier.weight(1f),onOpen,onEditAvailability)
     }
 }
 
 @Composable
 private fun WeekTimeline(
     appointments:List<AppointmentEntity>, blocks:List<CalendarBlockEntity>, overrides:List<AvailabilityOverrideEntity>, schedule:WorkSchedule,
-    focus:LocalDate, modifier:Modifier, onOpen:(AppointmentEntity)->Unit, onFreeDay:(LocalDate)->Unit
+    focus:LocalDate, modifier:Modifier, onOpen:(AppointmentEntity)->Unit, onEditAvailability:(LocalDate,String?)->Unit
 ){
     val monday=focus.minusDays((focus.dayOfWeek.value-1).toLong())
     val today=LocalDate.now(EC_ZONE)
@@ -145,7 +148,7 @@ private fun WeekTimeline(
             Spacer(Modifier.width(labelW))
             (0..6).forEach{i->
                 val d=monday.plusDays(i.toLong());val now=d==today
-                Column(Modifier.weight(1f).fillMaxHeight().background(if(now)CAL_TODAY_BG else Color.Transparent,RoundedCornerShape(10.dp)),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){
+                Column(Modifier.weight(1f).fillMaxHeight().background(if(now)CAL_TODAY_BG else Color.Transparent,RoundedCornerShape(10.dp)).clickable{onEditAvailability(d,null)},horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){
                     Text(d.format(DateTimeFormatter.ofPattern("EE",EC_RU)).replace(".",""),style=MaterialTheme.typography.labelSmall,color=if(now)CAL_TODAY else MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(d.dayOfMonth.toString(),style=MaterialTheme.typography.labelMedium,fontWeight=FontWeight.Bold,color=if(now)CAL_TODAY else MaterialTheme.colorScheme.onSurface)
                 }
@@ -172,7 +175,7 @@ private fun WeekTimeline(
                     val p=LocalTime.parse(t);val m=p.hour*60+p.minute
                     if(m in START_HOUR*60 until END_HOUR*60){
                         val y=gridH*((m-START_HOUR*60)/TOTAL_MINUTES.toFloat())
-                        Surface(color=CAL_AVAILABLE,border=BorderStroke(.7.dp,CAL_AVAILABLE_BORDER.copy(alpha=.7f)),shape=RoundedCornerShape(5.dp),modifier=Modifier.offset(x=labelW+dayW*i,y=y).width(dayW).height(22.dp).padding(horizontal=1.dp).clickable{onFreeDay(d)}){
+                        Surface(color=CAL_AVAILABLE,border=BorderStroke(.7.dp,CAL_AVAILABLE_BORDER.copy(alpha=.7f)),shape=RoundedCornerShape(5.dp),modifier=Modifier.offset(x=labelW+dayW*i,y=y).width(dayW).height(22.dp).padding(horizontal=1.dp).clickable{onEditAvailability(d,t)}){
                             Box(contentAlignment=Alignment.Center){Text(t,style=MaterialTheme.typography.labelSmall,color=Color(0xFF3E6C52),fontWeight=FontWeight.SemiBold)}
                         }
                     }
@@ -201,7 +204,7 @@ private fun WeekTimeline(
 @Composable
 private fun DayTimeline(
     appointments:List<AppointmentEntity>,blocks:List<CalendarBlockEntity>,overrides:List<AvailabilityOverrideEntity>,schedule:WorkSchedule,
-    date:LocalDate,modifier:Modifier,onOpen:(AppointmentEntity)->Unit
+    date:LocalDate,modifier:Modifier,onOpen:(AppointmentEntity)->Unit,onEditAvailability:(LocalDate,String?)->Unit
 ){
     val labelW=44.dp
     val dayAppts=appointments.filter{ecDate(it.startsAt)==date&&it.status!="cancelled"&&it.status!="canceled"}
@@ -221,8 +224,8 @@ private fun DayTimeline(
             val p=LocalTime.parse(t);val m=p.hour*60+p.minute
             if(m in START_HOUR*60 until END_HOUR*60){
                 val y=gridH*((m-START_HOUR*60)/TOTAL_MINUTES.toFloat())
-                Surface(color=CAL_AVAILABLE,border=BorderStroke(1.dp,CAL_AVAILABLE_BORDER),shape=RoundedCornerShape(8.dp),modifier=Modifier.offset(x=labelW,y=y).fillMaxWidth().height(30.dp).padding(end=5.dp)){
-                    Row(Modifier.fillMaxSize().padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically){Text(t,fontWeight=FontWeight.Bold,color=Color(0xFF3E6C52));Spacer(Modifier.width(8.dp));Text("Доступно для записи",style=MaterialTheme.typography.labelSmall,color=Color(0xFF3E6C52))}
+                Surface(color=CAL_AVAILABLE,border=BorderStroke(1.dp,CAL_AVAILABLE_BORDER),shape=RoundedCornerShape(8.dp),modifier=Modifier.offset(x=labelW,y=y).fillMaxWidth().height(30.dp).padding(end=5.dp).clickable{onEditAvailability(date,t)}){
+                    Row(Modifier.fillMaxSize().padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically){Text(t,fontWeight=FontWeight.Bold,color=Color(0xFF3E6C52));Spacer(Modifier.width(8.dp));Text("Доступно для записи · изменить",style=MaterialTheme.typography.labelSmall,color=Color(0xFF3E6C52))}
                 }
             }
         }
