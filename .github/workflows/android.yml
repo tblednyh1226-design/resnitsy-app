@@ -21,21 +21,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Prepare stable signing key
-        if: ${{ secrets.SLOTELLY_KEYSTORE_B64 != '' }}
+      - name: Apply work build changes
         working-directory: android
-        env:
-          SLOTELLY_KEYSTORE_B64: ${{ secrets.SLOTELLY_KEYSTORE_B64 }}
-        run: |
-          printf '%s' "$SLOTELLY_KEYSTORE_B64" | base64 -d > app/slotelly-test-stable.jks
+        run: python3 patch_work_build.py
       - name: Build debug APK
         working-directory: android
-        env:
-          SLOTELLY_SIGNING_ENABLED: ${{ secrets.SLOTELLY_KEYSTORE_B64 != '' }}
-          SLOTELLY_KEYSTORE_PATH: slotelly-test-stable.jks
-          SLOTELLY_KEYSTORE_PASSWORD: ${{ secrets.SLOTELLY_KEYSTORE_PASSWORD }}
-          SLOTELLY_KEY_ALIAS: ${{ secrets.SLOTELLY_KEY_ALIAS }}
-          SLOTELLY_KEY_PASSWORD: ${{ secrets.SLOTELLY_KEY_PASSWORD }}
         run: gradle :app:assembleDebug --stacktrace
       - name: Verify APK identity
         working-directory: android
@@ -43,20 +33,12 @@ jobs:
           APK=app/build/outputs/apk/debug/app-debug.apk
           AAPT=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)
           "$AAPT" dump badging "$APK" | tee /tmp/apk-badging.txt
-          grep -F "package: name='ru.slotelly.app.test054' versionCode='3' versionName='0.5.6-test'" /tmp/apk-badging.txt
-          grep -F "application-label:'Slotelly TEST 0.5.6'" /tmp/apk-badging.txt
+          grep -F "package: name='ru.slotelly.app.work060' versionCode='1' versionName='0.6.0-work'" /tmp/apk-badging.txt
+          grep -F "application-label:'Slotelly 0.6 WORK'" /tmp/apk-badging.txt
           grep -F "launchable-activity: name='ru.slotelly.app.NativeMainActivity'" /tmp/apk-badging.txt
-      - name: Verify stable signing certificate
-        if: ${{ secrets.SLOTELLY_KEYSTORE_B64 != '' }}
-        working-directory: android
-        run: |
-          APK=app/build/outputs/apk/debug/app-debug.apk
-          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)
-          "$APKSIGNER" verify --print-certs "$APK" | tee /tmp/apk-certs.txt
-          grep -F "80:7c:19:e2:9c:5b:f3:64:5b:d3:0f:ae:22:f3:9d:25:52:68:46:d5:0c:c3:9a:45:63:39:b6:5c:f0:61:88:4e" /tmp/apk-certs.txt
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: slotelly-test-0.5.6-stable-apk
+          name: slotelly-0.6-work-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
