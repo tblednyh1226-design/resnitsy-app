@@ -217,16 +217,22 @@ private fun NotificationHistoryOverlay(pin:String,api:NativeSettingsExtras,onClo
         Column(Modifier.weight(1f).fillMaxWidth().pointerInput(weekOffset){detectHorizontalDragGestures(onDragEnd={if(drag<-60f&&weekOffset<0)weekOffset++ else if(drag>60f)weekOffset--;drag=0f}){_,amount->drag+=amount}}.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(6.dp)){
             if(!loading&&weekRows.isEmpty()) Text("За эту неделю уведомлений не было",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
             weekRows.sortedByDescending{journalInstant(it)}.forEach{r->
+                val client=notificationClient(r)
                 Card(Modifier.fillMaxWidth()){
-                    Column(Modifier.padding(10.dp),verticalArrangement=Arrangement.spacedBy(3.dp)){
-                        Row(Modifier.fillMaxWidth()){Text(notificationType(r),fontWeight=FontWeight.SemiBold,modifier=Modifier.weight(1f));Text(statusLabel(r),style=MaterialTheme.typography.labelMedium,color=if(statusFailed(r))MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)}
+                    Column(Modifier.padding(11.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
+                        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+                            Column(Modifier.weight(1f)){
+                                Text(client,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleSmall)
+                                Text(notificationType(r),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Text(statusLabel(r),style=MaterialTheme.typography.labelMedium,fontWeight=FontWeight.SemiBold,color=if(statusFailed(r))MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                        }
                         val whenText=journalInstant(r)?.atZone(EM_ZONE)?.format(DateTimeFormatter.ofPattern("EEE, d MMM · HH:mm",EM_RU))
                         if(whenText!=null)Text(whenText.replace(".",""),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                        val client=r.get("client_name")?.takeUnless{it.isJsonNull}?.asString?:r.get("recipient_name")?.takeUnless{it.isJsonNull}?.asString
-                        if(!client.isNullOrBlank())Text(client,style=MaterialTheme.typography.bodySmall)
-                        Text(r.get("message_text")?.asString?:"",maxLines=3,style=MaterialTheme.typography.bodySmall)
-                        val channel=r.get("channel")?.takeUnless{it.isJsonNull}?.asString
-                        if(!channel.isNullOrBlank())Text(channel.replaceFirstChar{it.uppercase()},style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        val message=r.get("message_text")?.takeUnless{it.isJsonNull}?.asString.orEmpty()
+                        if(message.isNotBlank())Text(message,maxLines=3,style=MaterialTheme.typography.bodySmall)
+                        val channel=channelLabel(r)
+                        if(channel.isNotBlank())Text(channel,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -239,9 +245,43 @@ private fun journalInstant(r:JsonObject):Instant?{for(k in listOf("sent_at","cre
 private fun journalDate(r:JsonObject):LocalDate?=journalInstant(r)?.atZone(EM_ZONE)?.toLocalDate()
 private fun journalStatus(r:JsonObject)=r.get("delivery_status")?.takeUnless{it.isJsonNull}?.asString?.lowercase()?:r.get("status")?.takeUnless{it.isJsonNull}?.asString?.lowercase().orEmpty()
 private fun statusFailed(r:JsonObject)=journalStatus(r) in setOf("failed","error","rejected","blocked","undelivered")
-private fun statusOk(r:JsonObject)=journalStatus(r) in setOf("sent","delivered","read","ready","success","ok")
-private fun statusLabel(r:JsonObject):String=when{statusFailed(r)->"Ошибка";journalStatus(r)=="delivered"->"Доставлено";journalStatus(r)=="read"->"Прочитано";journalStatus(r)=="ready"->"Готово";else->"Отправлено"}
-private fun notificationType(r:JsonObject):String=when(r.get("template_type")?.takeUnless{it.isJsonNull}?.asString){"confirmation"->"Подтверждение записи";"reminder"->"Напоминание";"reschedule"->"Перенос записи";"cancellation"->"Отмена записи";else->r.get("template_type")?.takeUnless{it.isJsonNull}?.asString?:"Уведомление"}
+private fun statusOk(r:JsonObject)=journalStatus(r) in setOf("sent","delivered","read","success","ok")
+private fun statusLabel(r:JsonObject):String=when(journalStatus(r)){
+    "delivered"->"Доставлено"
+    "read"->"Прочитано"
+    "sent","success","ok"->"Отправлено"
+    "queued","pending","scheduled","ready","processing"->"Ожидает отправки"
+    "failed","error","rejected","blocked","undelivered"->"Ошибка отправки"
+    "cancelled","canceled"->"Отменено"
+    else->"Статус неизвестен"
+}
+private fun notificationType(r:JsonObject):String=when((r.get("template_type")?:r.get("type"))?.takeUnless{it.isJsonNull}?.asString?.lowercase()){
+    "confirmation","confirm","booking_confirmation"->"Подтверждение записи"
+    "reminder","appointment_reminder"->"Напоминание о записи"
+    "reschedule","rescheduled","move"->"Перенос записи"
+    "cancellation","cancel","cancelled","canceled"->"Отмена записи"
+    "payment","payment_reminder"->"Напоминание об оплате"
+    else->"Уведомление клиенту"
+}
+private fun notificationClient(r:JsonObject):String{
+    for(k in listOf("client_name","client_display_name","display_name","recipient_name","customer_name","name")){
+        val v=r.get(k)?.takeUnless{it.isJsonNull}?.asString?.trim().orEmpty()
+        if(v.isNotBlank())return v
+    }
+    val phone=for(k in listOf("recipient_phone","phone","client_phone")){
+        val v=r.get(k)?.takeUnless{it.isJsonNull}?.asString?.trim().orEmpty();if(v.isNotBlank())break v
+    }
+    return if(phone.isNotBlank())"Клиент · $phone" else "Клиент"
+}
+private fun channelLabel(r:JsonObject):String=when(r.get("channel")?.takeUnless{it.isJsonNull}?.asString?.lowercase()){
+    "telegram","tg"->"Telegram"
+    "whatsapp","wa"->"WhatsApp"
+    "vk","vkontakte"->"VK"
+    "max"->"MAX"
+    "sms"->"SMS"
+    "push"->"Push-уведомление"
+    else->r.get("channel")?.takeUnless{it.isJsonNull}?.asString.orEmpty()
+}
 
 @Composable private fun NotifySwitch(title:String,value:Boolean,onChange:(Boolean)->Unit){Row(Modifier.fillMaxWidth().padding(vertical=4.dp)){Text(title,modifier=Modifier.weight(1f));Switch(value,onCheckedChange=onChange)}}
 
